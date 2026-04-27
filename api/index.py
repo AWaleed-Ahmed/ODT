@@ -161,7 +161,7 @@ DEFAULT_TEMPLATES = [
     },
     {
         "id": "package",
-        "name": "UML Package",
+        "name": "UML Package Diagram",
         "elements": [
             {"id": "pkg1", "type": "package", "name": "com.myapp.orders", "x": 140, "y": 120, "width": 520, "height": 340},
             {"id": "pkg_c1", "type": "class", "name": "OrderService", "x": 220, "y": 240, "width": 170, "height": 88},
@@ -170,6 +170,19 @@ DEFAULT_TEMPLATES = [
         ],
         "connectors": [
             {"id": "pkgx1", "fromElement": "pkg_c1", "toElement": "pkg_c2", "type": "arrow", "text": "creates"},
+        ],
+    },
+    {
+        "id": "component",
+        "name": "UML Component Diagram",
+        "elements": [
+            {"id": "cmp1", "type": "component", "name": "Web Client", "x": 140, "y": 200, "width": 190, "height": 110},
+            {"id": "cmp2", "type": "component", "name": "API Gateway", "x": 390, "y": 200, "width": 210, "height": 110},
+            {"id": "cmp3", "type": "component", "name": "Order Service", "x": 670, "y": 200, "width": 210, "height": 110},
+        ],
+        "connectors": [
+            {"id": "cmpc1", "fromElement": "cmp1", "toElement": "cmp2", "type": "arrow", "text": "HTTPS"},
+            {"id": "cmpc2", "fromElement": "cmp2", "toElement": "cmp3", "type": "arrow", "text": "REST"},
         ],
     },
 ]

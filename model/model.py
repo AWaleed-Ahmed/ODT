@@ -31,6 +31,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "https://odt-app.vercel.app",
     ],
     allow_credentials=False,
     allow_methods=["*"],
@@ -84,24 +85,47 @@ DEFAULT_TEMPLATES = [
         "id": "usecase",
         "name": "UML Use Case",
         "elements": [
-            {"id": "uc_sys", "type": "rectangle", "name": "Online Store", "x": 300, "y": 100, "width": 460, "height": 400},
-            {"id": "uc_a1", "type": "rectangle", "name": "Customer", "x": 100, "y": 240, "width": 100, "height": 48},
-            {"id": "uc_a2", "type": "rectangle", "name": "Administrator", "x": 100, "y": 330, "width": 120, "height": 48},
-            {"id": "uc_e1", "type": "circle", "name": "Browse Catalog", "x": 390, "y": 150, "width": 120, "height": 120},
-            {"id": "uc_e2", "type": "circle", "name": "Place Order", "x": 390, "y": 290, "width": 120, "height": 120},
+            {
+                "id": "uc_sys",
+                "type": "rectangle",
+                "name": "Online Store",
+                "x": 300,
+                "y": 100,
+                "width": 460,
+                "height": 400,
+                "style": {
+                    "backgroundColor": "rgba(0,0,0,0)",
+                    "borderColor": "#94a3b8",
+                    "borderWidth": 2,
+                    "fontSize": 13,
+                },
+            },
+            {"id": "uc_a1", "type": "actor", "name": "Customer", "x": 100, "y": 240, "width": 56, "height": 128},
+            {"id": "uc_a2", "type": "actor", "name": "Administrator", "x": 100, "y": 400, "width": 56, "height": 128},
+            {"id": "uc_e1", "type": "ellipse", "name": "Browse Catalog", "x": 380, "y": 160, "width": 160, "height": 76},
+            {"id": "uc_e2", "type": "ellipse", "name": "Place Order", "x": 380, "y": 280, "width": 140, "height": 72},
+            {"id": "uc_e3", "type": "ellipse", "name": "Manage Users", "x": 380, "y": 400, "width": 160, "height": 76},
         ],
-        "connectors": [],
+        "connectors": [
+            {"id": "ucc1", "fromElement": "uc_a1", "toElement": "uc_e1", "type": "arrow", "text": ""},
+            {"id": "ucc2", "fromElement": "uc_a1", "toElement": "uc_e2", "type": "arrow", "text": ""},
+            {"id": "ucc3", "fromElement": "uc_a2", "toElement": "uc_e3", "type": "arrow", "text": ""},
+        ],
     },
     {
         "id": "sequence",
         "name": "UML Sequence",
         "elements": [
-            {"id": "sq_u", "type": "rectangle", "name": ":User", "x": 120, "y": 90, "width": 108, "height": 380},
-            {"id": "sq_ui", "type": "rectangle", "name": ":CartUI", "x": 280, "y": 90, "width": 118, "height": 380},
-            {"id": "sq_api", "type": "rectangle", "name": ":OrderAPI", "x": 460, "y": 90, "width": 130, "height": 380},
-            {"id": "sq_db", "type": "rectangle", "name": ":Database", "x": 640, "y": 90, "width": 118, "height": 380},
+            {"id": "sq_u", "type": "participant", "name": ":User", "x": 120, "y": 90, "width": 108, "height": 380},
+            {"id": "sq_ui", "type": "participant", "name": ":CartUI", "x": 280, "y": 90, "width": 118, "height": 380},
+            {"id": "sq_api", "type": "participant", "name": ":OrderAPI", "x": 460, "y": 90, "width": 130, "height": 380},
+            {"id": "sq_db", "type": "participant", "name": ":Database", "x": 640, "y": 90, "width": 118, "height": 380},
         ],
-        "connectors": [],
+        "connectors": [
+            {"id": "sqc1", "fromElement": "sq_u", "toElement": "sq_ui", "type": "arrow", "text": "addItem(itemId)"},
+            {"id": "sqc2", "fromElement": "sq_ui", "toElement": "sq_api", "type": "arrow", "text": "POST /orders"},
+            {"id": "sqc3", "fromElement": "sq_api", "toElement": "sq_db", "type": "arrow", "text": "INSERT"},
+        ],
     },
     {
         "id": "activity",
@@ -110,6 +134,9 @@ DEFAULT_TEMPLATES = [
             {"id": "act1", "type": "start", "label": "Start", "x": 400, "y": 60, "width": 64, "height": 64},
             {"id": "act2", "type": "rectangle", "name": "Receive Request", "x": 350, "y": 160, "width": 180, "height": 52},
             {"id": "act3", "type": "diamond", "name": "Authorized?", "x": 375, "y": 260, "width": 130, "height": 130},
+            {"id": "act4", "type": "rectangle", "name": "Process Payment", "x": 560, "y": 290, "width": 170, "height": 52},
+            {"id": "act5", "type": "rectangle", "name": "Show Error", "x": 140, "y": 290, "width": 150, "height": 52},
+            {"id": "act6", "type": "rectangle", "name": "Fulfill Order", "x": 350, "y": 440, "width": 180, "height": 52},
             {"id": "act7", "type": "end", "label": "End", "x": 400, "y": 560, "width": 64, "height": 64},
         ],
         "connectors": [],
@@ -118,20 +145,28 @@ DEFAULT_TEMPLATES = [
         "id": "deployment",
         "name": "UML Deployment",
         "elements": [
-            {"id": "dp_w", "type": "node", "name": "Web Tier", "x": 200, "y": 220, "width": 160, "height": 88},
-            {"id": "dp_app", "type": "node", "name": "App Tier", "x": 400, "y": 210, "width": 170, "height": 100},
-            {"id": "dp_db", "type": "database", "name": "PostgreSQL", "x": 610, "y": 230, "width": 130, "height": 88},
+            {"id": "dp_c", "type": "rectangle", "name": "<<executionEnvironment>>\nCloud VPC", "x": 140, "y": 120, "width": 620, "height": 380, "style": {"backgroundColor": "rgba(148,163,184,0.15)", "borderColor": "#64748b", "borderWidth": 2, "fontSize": 12}},
+            {"id": "dp_w", "type": "node", "name": "<<device>>\nWeb Tier\nnginx + SPA", "x": 200, "y": 220, "width": 160, "height": 88},
+            {"id": "dp_app", "type": "node", "name": "<<device>>\nApp Tier\nAPI services", "x": 400, "y": 210, "width": 170, "height": 100},
+            {"id": "dp_db", "type": "node", "name": "<<device>>\nData Tier\nPostgreSQL", "x": 610, "y": 230, "width": 130, "height": 88},
         ],
-        "connectors": [],
+        "connectors": [
+            {"id": "dpc1", "fromElement": "dp_w", "toElement": "dp_app", "type": "arrow", "text": "HTTPS"},
+            {"id": "dpc2", "fromElement": "dp_app", "toElement": "dp_db", "type": "arrow", "text": "JDBC"},
+        ],
     },
     {
         "id": "package",
         "name": "UML Package Diagram",
         "elements": [
-            {"id": "pkg1", "type": "package", "name": "com.myapp.orders", "x": 150, "y": 140, "width": 260, "height": 170},
-            {"id": "pkg2", "type": "package", "name": "com.myapp.shared", "x": 500, "y": 180, "width": 250, "height": 160},
+            {"id": "pkg1", "type": "package", "name": "com.myapp.orders", "x": 140, "y": 120, "width": 520, "height": 340},
+            {"id": "pkg_c1", "type": "class", "name": "OrderService", "x": 220, "y": 240, "width": 170, "height": 88},
+            {"id": "pkg_c2", "type": "class", "name": "Order", "x": 430, "y": 240, "width": 150, "height": 88},
+            {"id": "pkg_c3", "type": "rectangle", "name": "«constraint» Audited only from OrderService", "x": 180, "y": 360, "width": 420, "height": 56, "style": {"backgroundColor": "rgba(251,191,36,0.12)", "borderColor": "#d97706", "borderWidth": 1, "fontSize": 11}},
         ],
-        "connectors": [{"id": "pkgc1", "fromElement": "pkg1", "toElement": "pkg2", "type": "dependency", "text": "imports"}],
+        "connectors": [
+            {"id": "pkgx1", "fromElement": "pkg_c1", "toElement": "pkg_c2", "type": "arrow", "text": "creates"},
+        ],
     },
     {
         "id": "component",
@@ -253,9 +288,11 @@ def list_templates():
         merge_default_templates()
         with open(TEMPLATES_FILE, 'r') as f:
             templates = json.load(f)
+        if not isinstance(templates, list):
+            return {'templates': list(DEFAULT_TEMPLATES)}
         return {'templates': templates}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        return {'templates': list(DEFAULT_TEMPLATES)}
 
 @app.post('/api/register')
 def register_user(data: UserRegister):

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileCode, CheckSquare, CheckCircle, AlertTriangle, X, Link } from 'lucide-react';
+import { FileCode, CheckSquare, CheckCircle, AlertTriangle, X, Link, User } from 'lucide-react';
 import { generatePythonClasses } from './generators/umlCodeGenerator';
 import { validateDiagram } from './validation/diagramValidator';
-import { connectorEndpoints, selfLoopPath } from './diagramGeometry';
+import { connectorEndpointsSmart, selfLoopPath, PARTICIPANT_HEADER_PX } from './diagramGeometry';
 
 const escapeXml = (str) =>
   String(str || '')
@@ -284,15 +284,17 @@ function PropertiesPanel({ element, onChange, onDelete }) {
   );
 }
 export default function DiagramEditor({ template, elements: initialElements, connectors: initialConnectors = [], diagramId, onBack, onSave }) {
-  const [elements, setElements] = useState(() => 
-    initialElements.map(e => ({
-      ...e, 
-      id: e.id || Date.now().toString() + Math.random(),
-      width: e.width || 120, 
-      height: e.height || 60, 
-      // Preserve saved 'text' first, then fall back to template field names
-      text: e.text || e.name || e.label || 'Text'
-    }))
+  const [elements, setElements] = useState(() =>
+    initialElements.map((e) => {
+      const def = SHAPE_MAP[e.type];
+      return {
+        ...e,
+        id: e.id || Date.now().toString() + Math.random(),
+        width: e.width ?? def?.defaultWidth ?? 120,
+        height: e.height ?? def?.defaultHeight ?? 60,
+        text: e.text || e.name || e.label || 'Text',
+      };
+    })
   );
   const [connectors, setConnectors] = useState(initialConnectors);
   const [selectedId, setSelectedId] = useState(null);
@@ -515,7 +517,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
           svgStr += `<text x="${labelX}" y="${labelY + 2}" fill="${textColor}" font-size="11" font-family="monospace" text-anchor="middle">${escapeXml(c.text)}</text>`;
         }
       } else {
-        const { x1, y1, x2, y2 } = connectorEndpoints(fromEl, toEl, connectors, c);
+        const { x1, y1, x2, y2 } = connectorEndpointsSmart(fromEl, toEl, connectors, c, elements, template);
         svgStr += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeColor}" stroke-width="2.5"${dashAttr}${markerAttr} />`;
         if (c.text) {
           const midX = (x1 + x2) / 2;
@@ -543,16 +545,18 @@ export default function DiagramEditor({ template, elements: initialElements, con
         svgStr += buildTextTspan(el.text, el.x + el.width / 2, el.y + el.height / 2 + 4, textColor, fs);
       } else if (el.type === 'actor') {
         const cx = el.x + el.width / 2;
-        svgStr += `<circle cx="${cx}" cy="${el.y + 14}" r="10" fill="none" stroke="${edgeColor}" stroke-width="${bw}" />`;
-        svgStr += `<line x1="${cx}" y1="${el.y + 24}" x2="${cx}" y2="${el.y + 58}" stroke="${edgeColor}" stroke-width="${bw}" />`;
-        svgStr += `<line x1="${cx - 16}" y1="${el.y + 36}" x2="${cx + 16}" y2="${el.y + 36}" stroke="${edgeColor}" stroke-width="${bw}" />`;
-        svgStr += `<line x1="${cx}" y1="${el.y + 58}" x2="${cx - 16}" y2="${el.y + 82}" stroke="${edgeColor}" stroke-width="${bw}" />`;
-        svgStr += `<line x1="${cx}" y1="${el.y + 58}" x2="${cx + 16}" y2="${el.y + 82}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        const s = Math.min(el.width, el.height) / 26;
+        const gy = el.y + s * 12 + 4;
+        svgStr += `<g transform="translate(${cx},${gy}) scale(${s}) translate(-12,-10)" fill="none" stroke="${edgeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+        svgStr += `<circle cx="12" cy="7" r="4" />`;
+        svgStr += `<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />`;
+        svgStr += `</g>`;
         svgStr += `<text x="${cx}" y="${el.y + el.height - 6}" fill="${textColor}" font-size="${Math.max(fs - 1, 10)}" font-family="monospace" text-anchor="middle">${escapeXml(el.text || '')}</text>`;
       } else if (el.type === 'participant') {
-        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" stroke-dasharray="6 4" rx="4" />`;
-        svgStr += `<line x1="${el.x + el.width / 2}" y1="${el.y + 30}" x2="${el.x + el.width / 2}" y2="${el.y + el.height - 8}" stroke="${edgeColor}" stroke-width="1.5" stroke-dasharray="4 4" />`;
-        svgStr += `<text x="${el.x + el.width / 2}" y="${el.y + 20}" fill="${textColor}" font-size="${fs}" font-family="monospace" text-anchor="middle">${escapeXml(el.text || '')}</text>`;
+        const hh = PARTICIPANT_HEADER_PX;
+        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${hh}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="4" />`;
+        svgStr += `<line x1="${el.x + el.width / 2}" y1="${el.y + hh}" x2="${el.x + el.width / 2}" y2="${el.y + el.height}" stroke="${edgeColor}" stroke-width="1.5" stroke-dasharray="5 5" />`;
+        svgStr += `<text x="${el.x + el.width / 2}" y="${el.y + hh / 2 + 5}" fill="${textColor}" font-size="${fs}" font-family="monospace" text-anchor="middle">${escapeXml(el.text || '')}</text>`;
       } else if (el.type === 'database') {
         const ry = 10;
         svgStr += `<rect x="${el.x}" y="${el.y + ry}" width="${el.width}" height="${el.height - 2 * ry}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
@@ -849,7 +853,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
                  );
                }
 
-               const { x1, y1, x2, y2 } = connectorEndpoints(fromEl, toEl, connectors, c);
+               const { x1, y1, x2, y2 } = connectorEndpointsSmart(fromEl, toEl, connectors, c, elements, template);
                const midX = (x1 + x2) / 2;
                const midY = (y1 + y2) / 2;
 
@@ -902,7 +906,15 @@ export default function DiagramEditor({ template, elements: initialElements, con
             else if (el.type === 'diamond') shapeStyle.transform = 'rotate(45deg)';
             else if (el.type === 'participant') {
               shapeStyle.borderRadius = '4px';
-              shapeStyle.borderStyle = 'dashed';
+              shapeStyle.borderStyle = 'solid';
+              shapeStyle.flexDirection = 'column';
+              shapeStyle.alignItems = 'stretch';
+              shapeStyle.justifyContent = 'flex-start';
+              shapeStyle.padding = '0';
+            } else if (el.type === 'actor') {
+              shapeStyle.padding = '8px';
+              shapeStyle.flexDirection = 'column';
+              shapeStyle.justifyContent = 'flex-start';
             } else if (el.type === 'database') {
               shapeStyle.borderRadius = '16px / 12px';
             } else {
@@ -921,19 +933,84 @@ export default function DiagramEditor({ template, elements: initialElements, con
                     <div style={{ position: 'absolute', right: '13px', top: '20px', width: '8px', height: '3px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '1px', backgroundColor: style.backgroundColor }} />
                   </>
                 )}
-                {el.type === 'actor' && (
-                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                    <div style={{ position: 'absolute', top: '8px', left: 'calc(50% - 8px)', width: '16px', height: '16px', borderRadius: '50%', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}` }} />
-                    <div style={{ position: 'absolute', top: '26px', left: 'calc(50% - 1px)', width: '2px', height: '34px', backgroundColor: isSelected ? '#ffffff' : style.borderColor }} />
-                    <div style={{ position: 'absolute', top: '34px', left: 'calc(50% - 18px)', width: '36px', height: '2px', backgroundColor: isSelected ? '#ffffff' : style.borderColor }} />
-                    <div style={{ position: 'absolute', top: '58px', left: 'calc(50% - 1px)', width: '2px', height: '28px', backgroundColor: 'transparent' }} />
-                    <div style={{ position: 'absolute', top: '62px', left: 'calc(50% - 1px)', width: '2px', height: '18px', transform: 'rotate(30deg)', transformOrigin: 'top', backgroundColor: isSelected ? '#ffffff' : style.borderColor }} />
-                    <div style={{ position: 'absolute', top: '62px', left: 'calc(50% - 1px)', width: '2px', height: '18px', transform: 'rotate(-30deg)', transformOrigin: 'top', backgroundColor: isSelected ? '#ffffff' : style.borderColor }} />
+                {el.type === 'participant' ? (
+                  <>
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        padding: '10px 8px',
+                        borderBottom: `2px solid ${isSelected ? '#ffffff' : style.borderColor}`,
+                        fontWeight: 600,
+                        fontSize: `${Math.min(style.fontSize, 13)}px`,
+                        textAlign: 'center',
+                        lineHeight: 1.25,
+                      }}
+                    >
+                      {el.text}
+                    </div>
+                    <div style={{ flex: 1, position: 'relative', minHeight: 24 }}>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          top: 0,
+                          bottom: 0,
+                          width: 0,
+                          borderLeft: `2px dashed ${isSelected ? 'rgba(255,255,255,0.85)' : style.borderColor}`,
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : el.type === 'actor' ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      height: '100%',
+                      width: '100%',
+                      gap: 10,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <User
+                      size={Math.min(Math.min(el.width, el.height) * 0.42, 44)}
+                      strokeWidth={2}
+                      color={isSelected ? '#fff' : style.borderColor}
+                      style={{ flexShrink: 0 }}
+                      aria-hidden
+                    />
+                    <strong
+                      style={{
+                        marginTop: 'auto',
+                        fontSize: `${Math.min(style.fontSize, 13)}px`,
+                        textAlign: 'center',
+                        lineHeight: 1.35,
+                        wordWrap: 'break-word',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {el.text}
+                    </strong>
+                  </div>
+                ) : (
+                  <div style={el.type === 'diamond' ? { transform: 'rotate(-45deg)' } : {}}>
+                    <strong
+                      style={{
+                        display: 'block',
+                        wordWrap: 'break-word',
+                        overflow: 'hidden',
+                        fontSize: `${style.fontSize}px`,
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: '1.4',
+                      }}
+                    >
+                      {el.text}
+                    </strong>
                   </div>
                 )}
-                <div style={el.type === 'diamond' ? { transform: 'rotate(-45deg)' } : {}}>
-                  <strong style={{ display: 'block', wordWrap: 'break-word', overflow: 'hidden', fontSize: `${style.fontSize}px`, whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{el.text}</strong>
-                </div>
 
                 {isSelected && !draggingId && (
                    <div 

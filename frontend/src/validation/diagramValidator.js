@@ -19,6 +19,42 @@ function runBasicChecks(elements, connectors) {
   return errors;
 }
 
+function runSequenceChecks(elements) {
+  const errors = [];
+  const participants = elements.filter((e) => e.type === 'participant');
+  if (participants.length === 0 && elements.length > 0) {
+    errors.push('UML Sequence diagrams should include at least one participant (lifeline)');
+  }
+  return errors;
+}
+
+function runUseCaseChecks(elements) {
+  const errors = [];
+  if (elements.length === 0) return errors;
+  const hasActor = elements.some((e) => e.type === 'actor');
+  const hasUseCase = elements.some((e) => e.type === 'ellipse');
+  if (!hasActor) {
+    errors.push('Use case diagrams typically include at least one actor');
+  }
+  if (!hasUseCase) {
+    errors.push('Use case diagrams typically include use cases (ellipse shapes)');
+  }
+  return errors;
+}
+
+function runDeploymentChecks(elements, connectors) {
+  const errors = [];
+  const nodes = elements.filter((e) => e.type === 'node' || e.type === 'database' || e.type === 'component');
+  if (elements.length > 0 && nodes.length === 0) {
+    errors.push('UML Deployment diagrams usually show nodes, components, or databases');
+  }
+  const floating = nodes.filter((n) => connectors.every((c) => c.fromElement !== n.id && c.toElement !== n.id));
+  if (nodes.length > 1 && floating.length === nodes.length) {
+    errors.push('Link deployment elements with connectors to show communication or deployment');
+  }
+  return errors;
+}
+
 function runTemplateChecks(elements, connectors, templateType) {
   const errors = [];
   
@@ -41,6 +77,18 @@ function runTemplateChecks(elements, connectors, templateType) {
 
   if (isClassDiagram || hasUMLClassNodes) {
     errors.push(...runUMLChecks(elements, connectors));
+  }
+
+  if (tt === 'uml sequence' || tt === 'sequence') {
+    errors.push(...runSequenceChecks(elements));
+  }
+
+  if (tt === 'uml use case' || tt === 'usecase') {
+    errors.push(...runUseCaseChecks(elements));
+  }
+
+  if (tt === 'uml deployment' || tt === 'deployment') {
+    errors.push(...runDeploymentChecks(elements, connectors));
   }
 
   return errors;
