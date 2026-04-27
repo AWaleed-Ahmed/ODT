@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ThemeToggle from './ThemeToggle.jsx';
 
 export default function Dashboard({ user, backendStatus, modelStatus, onLogout, onNewDiagram, onOpenDiagram }) {
   const [diagrams, setDiagrams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef(null);
 
   const fetchDiagrams = async () => {
     try {
@@ -26,24 +29,50 @@ export default function Dashboard({ user, backendStatus, modelStatus, onLogout, 
     fetchDiagrams();
   }, [user.user_id]);
 
-  const handleCreateNew = () => {
-    onNewDiagram();
-  };
-
   const handleDelete = async (diagramId) => {
     if (!confirm('Are you sure you want to delete this diagram?')) return;
     try {
-      const res = await fetch(`/api/diagrams/${diagramId}`, {
-        method: 'DELETE'
-      });
+      const res = await fetch(`/api/diagrams/${diagramId}`, { method: 'DELETE' });
       if (res.ok) {
         fetchDiagrams();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete diagram');
+        alert(data.error || data.detail || 'Failed to delete diagram');
       }
-    } catch (err) {
+    } catch {
       alert('Network error');
+    }
+  };
+
+  const startRename = (e, diagram) => {
+    e.stopPropagation();
+    setRenamingId(diagram.id);
+    setRenameValue(diagram.name);
+    setTimeout(() => renameInputRef.current?.focus(), 50);
+  };
+
+  const commitRename = async (diagramId) => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      setRenamingId(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/diagrams/${diagramId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (res.ok) {
+        setDiagrams((prev) => prev.map((d) => (d.id === diagramId ? { ...d, name: trimmed } : d)));
+      } else {
+        const data = await res.json();
+        alert(data.detail || data.error || 'Failed to rename');
+      }
+    } catch {
+      alert('Network error');
+    } finally {
+      setRenamingId(null);
     }
   };
 
@@ -54,19 +83,16 @@ export default function Dashboard({ user, backendStatus, modelStatus, onLogout, 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           <ThemeToggle />
           <span style={{ color: 'var(--text-muted)' }}>Welcome, <strong style={{ color: 'var(--text-primary)' }}>{user.username}</strong></span>
-          <button 
-            onClick={onLogout} 
-            style={{ padding: '8px 16px', backgroundColor: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}
-          >
+          <button onClick={onLogout} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
             Logout
           </button>
         </div>
       </header>
-      
+
       <main>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
           <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Your Diagrams</h2>
-          <button onClick={handleCreateNew} style={{ backgroundColor: 'var(--accent-inverse-bg)', color: 'var(--accent-inverse-text)', borderColor: 'var(--border-strong)' }}>
+          <button onClick={onNewDiagram} style={{ backgroundColor: 'var(--accent-inverse-bg)', color: 'var(--accent-inverse-text)', borderColor: 'var(--border-strong)' }}>
             + New Diagram
           </button>
         </div>
@@ -75,44 +101,45 @@ export default function Dashboard({ user, backendStatus, modelStatus, onLogout, 
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Loading diagrams...</p>
         ) : diagrams.length === 0 ? (
-          <div style={{ 
-            backgroundColor: 'var(--bg-surface)', 
-            border: '1px dashed var(--border-default)', 
-            borderRadius: '12px', 
-            padding: '4rem 2rem', 
-            textAlign: 'center'
-          }}>
+          <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px dashed var(--border-default)', borderRadius: '12px', padding: '4rem 2rem', textAlign: 'center' }}>
             <p style={{ color: 'var(--text-muted)', margin: 0 }}>No diagrams found. Create one to get started!</p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-            {diagrams.map(diagram => (
-              <div key={diagram.id} style={{ 
-                backgroundColor: 'var(--bg-surface)', 
-                border: '1px solid var(--border-default)', 
-                borderRadius: '12px', 
-                padding: '1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem',
-                transition: 'border-color 0.2s ease',
-                cursor: 'pointer'
-              }}
-              onClick={() => onOpenDiagram(diagram)}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-emphasis)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
+            {diagrams.map((diagram) => (
+              <div
+                key={diagram.id}
+                style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', transition: 'border-color 0.2s ease', cursor: 'pointer' }}
+                onClick={() => onOpenDiagram(diagram)}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-emphasis)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
               >
                 <div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem', color: 'var(--text-primary)' }}>{diagram.name}</h3>
+                  {renamingId === diagram.id ? (
+                    <input
+                      ref={renameInputRef}
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => commitRename(diagram.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitRename(diagram.id);
+                        if (e.key === 'Escape') setRenamingId(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: '100%', boxSizing: 'border-box', fontSize: '1.1rem', fontWeight: 'bold', backgroundColor: 'var(--bg-muted)', color: 'var(--text-primary)', border: '1px solid var(--border-emphasis)', borderRadius: '6px', padding: '4px 8px', outline: 'none', marginBottom: '0.5rem' }}
+                    />
+                  ) : (
+                    <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem', color: 'var(--text-primary)' }}>{diagram.name}</h3>
+                  )}
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-muted)', padding: '4px 8px', borderRadius: '4px' }}>
-                    Type: {diagram.template}
+                    {diagram.template}
                   </span>
                 </div>
-                <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid var(--border-default)' }}>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDelete(diagram.id); }}
-                    style={{ padding: '6px 12px', fontSize: '0.9rem', backgroundColor: 'transparent', color: 'var(--error-soft-text)', border: '1px solid rgba(239, 68, 68, 0.35)' }}
-                  >
+                <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-default)' }}>
+                  <button onClick={(e) => startRename(e, diagram)} style={{ padding: '6px 12px', fontSize: '0.9rem', backgroundColor: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)', borderRadius: '6px' }}>
+                    Rename
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(diagram.id); }} style={{ padding: '6px 12px', fontSize: '0.9rem', backgroundColor: 'transparent', color: 'var(--error-soft-text)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '6px' }}>
                     Delete
                   </button>
                 </div>

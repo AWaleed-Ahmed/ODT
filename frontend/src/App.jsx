@@ -91,8 +91,11 @@ function App() {
     const templateType = editorData.template;
     const validationResult = validateDiagram(elements, connectors, templateType);
     if (!validationResult.valid) {
-      alert(`Diagram validation failed:\n- ${validationResult.errors.join('\n- ')}`);
-      return;
+      const proceed = window.confirm(
+        `Diagram has ${validationResult.errors.length} validation issue(s):\n\n` +
+        `• ${validationResult.errors.join('\n• ')}\n\nSave anyway?`
+      );
+      if (!proceed) return;
     }
 
     try {
@@ -104,7 +107,8 @@ function App() {
       if (resp.ok) {
         alert('Diagram saved successfully!');
       } else {
-        alert('Failed to save diagram.');
+        const errData = await resp.json().catch(() => ({}));
+        alert(errData.detail || errData.error || 'Failed to save diagram.');
       }
     } catch(e) { 
       console.error('Error saving diagram', e); 

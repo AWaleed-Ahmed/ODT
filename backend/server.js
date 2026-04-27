@@ -129,6 +129,21 @@ app.post('/api/diagrams', async (req, res) => {
   }
 });
 
+app.patch('/api/diagrams/:id', async (req, res) => {
+  try {
+    const response = await fetch(`${MODEL_API}/api/diagrams/${req.params.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error bridging PATCH to model API' });
+  }
+});
+
 app.delete('/api/diagrams/:diagram_id', async (req, res) => {
   try {
     const { diagram_id } = req.params;

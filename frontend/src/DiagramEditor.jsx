@@ -1,22 +1,35 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileCode, CheckSquare, CheckCircle, AlertTriangle, X } from 'lucide-react';
-import ThemeToggle from './ThemeToggle.jsx';
-import { useTheme } from './ThemeContext.jsx';
+import { FileCode, CheckSquare, CheckCircle, AlertTriangle, X, Link } from 'lucide-react';
 import { generatePythonClasses } from './generators/umlCodeGenerator';
 import { validateDiagram } from './validation/diagramValidator';
+import { connectorEndpoints, selfLoopPath } from './diagramGeometry';
+
+const escapeXml = (str) =>
+  String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+const CONNECTOR_TYPES = [
+  { value: 'arrow',       label: 'Arrow', description: 'Directed arrow (tip at target)' },
+  { value: 'inheritance', label: 'Inheritance ▷', description: 'UML generalization (hollow triangle)' },
+  { value: 'association', label: 'Association', description: 'UML association (open arrow tip)' },
+  { value: 'dependency',  label: 'Dependency', description: 'Dashed dependency arrow' },
+  { value: 'er_many',     label: 'ER — Many (crow\'s foot)', description: 'Cardinality “many” at target entity' },
+  { value: 'er_one',      label: 'ER — One (|)', description: 'Cardinality “one” bar at target entity' },
+];
 
 const SHAPE_TYPES = [
   { type: 'class', label: 'UML Class', defaultWidth: 150, defaultHeight: 80 },
-  { type: 'ellipse', label: 'Use Case', defaultWidth: 140, defaultHeight: 72 },
-  { type: 'actor', label: 'Actor', defaultWidth: 56, defaultHeight: 128 },
-  { type: 'package', label: 'Package', defaultWidth: 240, defaultHeight: 180 },
-  { type: 'participant', label: 'Lifeline', defaultWidth: 110, defaultHeight: 360 },
-  { type: 'node', label: 'Deployment Node', defaultWidth: 140, defaultHeight: 88 },
   { type: 'rectangle', label: 'Rectangle', defaultWidth: 120, defaultHeight: 60 },
   { type: 'circle', label: 'Circle / State', defaultWidth: 90, defaultHeight: 90 },
   { type: 'diamond', label: 'Decision', defaultWidth: 100, defaultHeight: 100 },
   { type: 'start', label: 'Start Node', defaultWidth: 60, defaultHeight: 60 },
   { type: 'end', label: 'End Node', defaultWidth: 60, defaultHeight: 60 },
+  { type: 'entity', label: 'ER Entity', defaultWidth: 140, defaultHeight: 70 },
+  { type: 'node', label: 'Arch. Component', defaultWidth: 130, defaultHeight: 56 },
+  { type: 'database', label: 'Database', defaultWidth: 120, defaultHeight: 72 },
 ];
 
 // ─── CASE Tool: Code Generation Modal ───────────────────────────────────────
@@ -29,28 +42,28 @@ function CodeGenModal({ elements, connectors, onClose }) {
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'var(--overlay-backdrop)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ backgroundColor: 'var(--modal-surface)', border: '1px solid var(--border-strong)', borderRadius: '12px', padding: '2rem', width: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ backgroundColor: '#1c1b1a', border: '1px solid #444', borderRadius: '12px', padding: '2rem', width: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileCode size={20} /> Generate Python Code</h3>
-          <button onClick={onClose} style={{ background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
+          <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileCode size={20} /> Generate Python Code</h3>
+          <button onClick={onClose} style={{ background: 'transparent', color: '#aaa', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
         </div>
 
         {!hasClasses ? (
-          <div style={{ color: 'var(--warn-banner-text)', backgroundColor: 'var(--warn-banner-bg)', border: '1px solid var(--warn-banner-border)', borderRadius: '8px', padding: '1rem', margin: 0, display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+          <div style={{ color: '#f0a500', backgroundColor: '#2a2000', border: '1px solid #5a4000', borderRadius: '8px', padding: '1rem', margin: 0, display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
             <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
               <p style={{ margin: '0 0 0.5rem 0' }}>No UML Class elements found on canvas. Add shapes using the <strong>"UML Class"</strong> type from the palette and label them like:</p>
-              <code style={{ color: 'var(--code-syntax)', display: 'block', backgroundColor: 'var(--bg-muted)', padding: '0.5rem', borderRadius: '4px' }}>ClassName{`\n`}attribute1{`\n`}attribute2</code>
+              <code style={{ color: '#7ec8e3', display: 'block', backgroundColor: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '4px' }}>ClassName{`\n`}attribute1{`\n`}attribute2</code>
             </div>
           </div>
         ) : (
           <>
-            <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>Generated from {elements.filter(e => e.type === 'class').length} class(es) on the canvas:</p>
-            <pre style={{ backgroundColor: 'var(--code-bg)', border: '1px solid var(--border-default)', borderRadius: '8px', padding: '1.5rem', overflowY: 'auto', flex: 1, color: 'var(--code-syntax)', fontFamily: 'monospace', fontSize: '0.9rem', margin: 0, whiteSpace: 'pre-wrap' }}>
+            <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Generated from {elements.filter(e => e.type === 'class').length} class(es) on the canvas:</p>
+            <pre style={{ backgroundColor: '#0d0d0d', border: '1px solid #333', borderRadius: '8px', padding: '1.5rem', overflowY: 'auto', flex: 1, color: '#7ec8e3', fontFamily: 'monospace', fontSize: '0.9rem', margin: 0, whiteSpace: 'pre-wrap' }}>
               {code || '# No class content found. Add text labels to your UML Class shapes.'}
             </pre>
-            <button onClick={handleCopy} style={{ backgroundColor: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', alignSelf: 'flex-end' }}>Copy to Clipboard</button>
+            <button onClick={handleCopy} style={{ backgroundColor: '#333', color: '#fff', border: '1px solid #555', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', alignSelf: 'flex-end' }}>Copy to Clipboard</button>
           </>
         )}
       </div>
@@ -63,33 +76,33 @@ function ValidationModal({ elements, connectors, template, onClose }) {
   const result = validateDiagram(elements, connectors, template);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'var(--overlay-backdrop)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ backgroundColor: 'var(--modal-surface)', border: `1px solid ${result.valid ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)'}`, borderRadius: '12px', padding: '2rem', width: '480px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ backgroundColor: '#1c1b1a', border: `1px solid ${result.valid ? '#2a5a2a' : '#5a2a2a'}`, borderRadius: '12px', padding: '2rem', width: '480px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckSquare size={20} /> Validate Diagram</h3>
-          <button onClick={onClose} style={{ background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
+          <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckSquare size={20} /> Validate Diagram</h3>
+          <button onClick={onClose} style={{ background: 'transparent', color: '#aaa', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
         </div>
 
         {result.valid ? (
-          <div style={{ backgroundColor: 'var(--success-bg)', border: '1px solid rgba(16, 185, 129, 0.35)', borderRadius: '8px', padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <CheckCircle size={32} color="var(--success-text)" />
+          <div style={{ backgroundColor: '#0d2a0d', border: '1px solid #2a5a2a', borderRadius: '8px', padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <CheckCircle size={32} color="#7dce82" />
             <div>
-              <p style={{ color: 'var(--success-text)', fontWeight: 'bold', margin: '0 0 0.25rem 0' }}>Diagram is valid!</p>
-              <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>No structural errors found. {elements.length} element(s), {connectors.length} connector(s).</p>
+              <p style={{ color: '#7dce82', fontWeight: 'bold', margin: '0 0 0.25rem 0' }}>Diagram is valid!</p>
+              <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>No structural errors found. {elements.length} element(s), {connectors.length} connector(s).</p>
             </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <p style={{ color: 'var(--error-soft-text)', margin: 0 }}>Found {result.errors.length} error(s):</p>
+            <p style={{ color: '#f08080', margin: 0 }}>Found {result.errors.length} error(s):</p>
             {result.errors.map((err, i) => (
-              <div key={i} style={{ backgroundColor: 'var(--error-soft-bg)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '6px', padding: '0.75rem 1rem', color: 'var(--error-soft-text)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div key={i} style={{ backgroundColor: '#2a0d0d', border: '1px solid #5a2a2a', borderRadius: '6px', padding: '0.75rem 1rem', color: '#f08080', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <AlertTriangle size={16} /> {err}
               </div>
             ))}
           </div>
         )}
 
-        <button onClick={onClose} style={{ backgroundColor: 'var(--accent-inverse-bg)', color: 'var(--accent-inverse-text)', border: '1px solid var(--border-strong)', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Close</button>
+        <button onClick={onClose} style={{ backgroundColor: '#fff', color: '#000', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Close</button>
       </div>
     </div>
   );
@@ -100,38 +113,36 @@ function ExportDialog({ onClose, onExport }) {
   const [transparent, setTransparent] = useState(false);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'var(--overlay-backdrop)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ backgroundColor: 'var(--modal-surface)', border: '1px solid var(--border-default)', borderRadius: '12px', padding: '2rem', width: '320px' }}>
-        <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-primary)', fontSize: '1.2rem' }}>Export Diagram</h3>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ backgroundColor: '#1c1b1a', border: '1px solid #333', borderRadius: '12px', padding: '2rem', width: '320px' }}>
+        <h3 style={{ margin: '0 0 1.5rem 0', color: '#fff', fontSize: '1.2rem' }}>Export Diagram</h3>
         
         <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Format</label>
-          <select value={format} onChange={e => setFormat(e.target.value)} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '6px', outline: 'none' }}>
+          <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Format</label>
+          <select value={format} onChange={e => setFormat(e.target.value)} style={{ width: '100%', padding: '10px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '6px', outline: 'none' }}>
             <option value="png">PNG Image (.png)</option>
             <option value="svg">SVG Vector (.svg)</option>
           </select>
         </div>
 
         <div style={{ marginBottom: '2rem' }}>
-          <label style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+          <label style={{ color: '#aaa', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
             <input type="checkbox" checked={transparent} onChange={e => setTransparent(e.target.checked)} style={{ cursor: 'pointer', width: '16px', height: '16px' }} />
             Transparent Background
           </label>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-          <button onClick={onClose} style={{ backgroundColor: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={() => onExport(format, transparent)} style={{ backgroundColor: 'var(--accent-inverse-bg)', color: 'var(--accent-inverse-text)', border: '1px solid var(--border-strong)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Download</button>
+          <button onClick={onClose} style={{ backgroundColor: 'transparent', color: '#aaa', border: '1px solid #555', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => onExport(format, transparent)} style={{ backgroundColor: '#fff', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Download</button>
         </div>
       </div>
     </div>
   );
 }
 function PropertiesPanel({ element, onChange, onDelete }) {
-  const { theme } = useTheme();
-  const defaultFill = theme === 'light' ? '#f4f4f5' : '#16161e';
   if (!element) return null;
-  const style = element.style || { backgroundColor: defaultFill, borderColor: '#555555', borderWidth: 2, fontSize: 14 };
+  const style = element.style || { backgroundColor: '#16161e', borderColor: '#555555', borderWidth: 2, fontSize: 14 };
 
   const handleChange = (field, value) => {
     if (field === 'text') {
@@ -154,43 +165,43 @@ function PropertiesPanel({ element, onChange, onDelete }) {
   };
 
   return (
-    <aside style={{ width: '280px', backgroundColor: 'var(--bg-surface)', borderLeft: '1px solid var(--border-default)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', zIndex: 10, overflowY: 'auto' }}>
-      <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem' }}>Properties</h3>
+    <aside style={{ width: '280px', backgroundColor: '#111', borderLeft: '1px solid #333', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', zIndex: 10, overflowY: 'auto' }}>
+      <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem' }}>Properties</h3>
       
       <div>
-        <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Text Label</label>
+        <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Text Label</label>
         <textarea 
           value={element.text || ''} 
           onChange={e => handleChange('text', e.target.value)}
           rows={4}
-          style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-muted)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+          style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
         />
       </div>
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Width</label>
+          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Width</label>
           <input 
             type="number" 
             value={element.width || 0} 
             onChange={e => handleChange('width', parseInt(e.target.value) || 0)}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-muted)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', outline: 'none' }}
+            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }}
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Height</label>
+          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Height</label>
           <input 
             type="number" 
             value={element.height || 0} 
             onChange={e => handleChange('height', parseInt(e.target.value) || 0)}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-muted)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', outline: 'none' }}
+            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }}
           />
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Background Color</label>
+          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Background Color</label>
           <input 
             type="color" 
             value={style.backgroundColor} 
@@ -199,7 +210,7 @@ function PropertiesPanel({ element, onChange, onDelete }) {
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Border Color</label>
+          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Border Color</label>
           <input 
             type="color" 
             value={style.borderColor} 
@@ -211,7 +222,7 @@ function PropertiesPanel({ element, onChange, onDelete }) {
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Border Width ({style.borderWidth}px)</label>
+          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Border Width ({style.borderWidth}px)</label>
           <input 
             type="range" 
             min="0" max="10" 
@@ -221,20 +232,20 @@ function PropertiesPanel({ element, onChange, onDelete }) {
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Font Size ({style.fontSize}px)</label>
+          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Font Size ({style.fontSize}px)</label>
           <input 
             type="number" 
             value={style.fontSize} 
             onChange={e => handleChange('fontSize', parseInt(e.target.value) || 12)}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-muted)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', outline: 'none' }}
+            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }}
           />
         </div>
       </div>
 
-      <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-default)' }}>
+      <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid #333' }}>
         <button 
           onClick={onDelete} 
-          style={{ width: '100%', padding: '10px', backgroundColor: 'var(--error-soft-bg)', color: 'var(--error-soft-text)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+          style={{ width: '100%', padding: '10px', backgroundColor: '#3a1a1a', color: '#ffaaaa', border: '1px solid #662222', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
         >
           Delete Element
         </button>
@@ -243,29 +254,17 @@ function PropertiesPanel({ element, onChange, onDelete }) {
   );
 }
 export default function DiagramEditor({ template, elements: initialElements, connectors: initialConnectors = [], diagramId, onBack, onSave }) {
-  const { theme } = useTheme();
-  const defaultShapeFill = theme === 'light' ? '#f4f4f5' : '#16161e';
-  const defaultClassFill = theme === 'light' ? '#e0f2fe' : '#0d1a2a';
-  const defaultClassBorder = theme === 'light' ? '#0284c7' : '#3a6ea8';
-
-  const [elements, setElements] = useState(() =>
-    initialElements.map((e) => {
-      const def = SHAPE_TYPES.find((s) => s.type === e.type);
-      return {
-        ...e,
-        id: e.id || `${Date.now()}${Math.random()}`,
-        width: e.width ?? def?.defaultWidth ?? 120,
-        height: e.height ?? def?.defaultHeight ?? 60,
-        text: e.name || e.label || 'Text',
-      };
-    })
-  );
-  const [connectors, setConnectors] = useState(() =>
-    (initialConnectors || []).map((c, i) => ({
-      ...c,
-      id: c.id ?? `conn_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 9)}`,
+  const [elements, setElements] = useState(() => 
+    initialElements.map(e => ({
+      ...e, 
+      id: e.id || Date.now().toString() + Math.random(),
+      width: e.width || 120, 
+      height: e.height || 60, 
+      // Preserve saved 'text' first, then fall back to template field names
+      text: e.text || e.name || e.label || 'Text'
     }))
   );
+  const [connectors, setConnectors] = useState(initialConnectors);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState(null);
   const [showExport, setShowExport] = useState(false);
@@ -273,6 +272,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
   const [showValidation, setShowValidation] = useState(false);
 
   const [connectingFrom, setConnectingFrom] = useState(null);
+  const [selectedConnectorType, setSelectedConnectorType] = useState('arrow');
   const [draggingId, setDraggingId] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
@@ -310,7 +310,9 @@ export default function DiagramEditor({ template, elements: initialElements, con
   const handlePointerDownElement = (e, id) => {
     e.stopPropagation();
     if (connectingFrom) {
-       handleConnect(connectingFrom, id, 'arrow');
+       if (connectingFrom !== id) {
+         handleConnect(connectingFrom, id, selectedConnectorType);
+       }
        setConnectingFrom(null);
        return;
     }
@@ -377,6 +379,10 @@ export default function DiagramEditor({ template, elements: initialElements, con
     setConnectors(connectors.map(c => c.id === id ? { ...c, text: newText } : c));
   };
 
+  const handleUpdateConnector = (id, updates) => {
+    setConnectors(connectors.map(c => c.id === id ? { ...c, ...updates } : c));
+  };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.key === 'Backspace' || e.key === 'Delete')) {
@@ -419,74 +425,108 @@ export default function DiagramEditor({ template, elements: initialElements, con
       svgStr += `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${bgColor}" />`;
     }
 
+    const fillOpen = bgColor === 'transparent' ? '#1c1b1a' : '#ffffff';
     svgStr += `<defs>
-      <marker id="export-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <marker id="export-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
         <polygon points="0 0, 10 3.5, 0 7" fill="${strokeColor}" />
       </marker>
+      <marker id="export-arrowhead-open" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+        <polygon points="0 0, 12 4.5, 0 9" fill="${fillOpen}" stroke="${strokeColor}" stroke-width="1.5" />
+      </marker>
+      <marker id="export-arrow-assoc" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+        <polygon points="0 0, 8 3.5, 0 7" fill="${fillOpen}" stroke="${strokeColor}" stroke-width="1.2" />
+      </marker>
+      <marker id="export-crow" markerWidth="18" markerHeight="14" refX="16" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M 0 0 L 6 7 L 0 14 M 6 7 L 16 7" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" />
+      </marker>
+      <marker id="export-er-one" markerWidth="8" markerHeight="16" refX="5" refY="8" orient="auto" markerUnits="userSpaceOnUse">
+        <line x1="4" y1="1" x2="4" y2="15" stroke="${strokeColor}" stroke-width="2.5" stroke-linecap="square" />
+      </marker>
     </defs>`;
+
+    const buildTextTspan = (text, cx, cy, textColor, fontSize = 13) => {
+      const lines = String(text || '').split('\n');
+      if (lines.length === 1) {
+        return `<text x="${cx}" y="${cy}" fill="${textColor}" font-size="${fontSize}" font-family="monospace" text-anchor="middle">${escapeXml(lines[0])}</text>`;
+      }
+      const lineH = fontSize * 1.4;
+      const totalH = lines.length * lineH;
+      const startY = cy - totalH / 2 + lineH * 0.8;
+      const tspans = lines.map((line, i) =>
+        `<tspan x="${cx}" dy="${i === 0 ? 0 : lineH}">${escapeXml(line)}</tspan>`
+      ).join('');
+      return `<text x="${cx}" y="${startY}" fill="${textColor}" font-size="${fontSize}" font-family="monospace" text-anchor="middle">${tspans}</text>`;
+    };
 
     connectors.forEach(c => {
       const fromEl = elements.find(e => e.id === c.fromElement);
       const toEl = elements.find(e => e.id === c.toElement);
       if (!fromEl || !toEl) return;
-      
-      if (fromEl === toEl) {
-        const x = fromEl.x + fromEl.width / 2;
-        const y = fromEl.y; 
-        const path = `M ${x} ${y} C ${x - 60} ${y - 100}, ${x + 60} ${y - 100}, ${x} ${y}`;
-        svgStr += `<path d="${path}" fill="none" stroke="${strokeColor}" stroke-width="3" marker-end="url(#export-arrowhead)" />`;
+
+      const t = c.type || 'arrow';
+      const isDep = t === 'dependency';
+      const isInherit = t === 'inheritance';
+      const dashAttr = isDep ? ' stroke-dasharray="8 4"' : '';
+      let markerAttr = ' marker-end="url(#export-arrowhead)"';
+      if (isInherit) markerAttr = ' marker-end="url(#export-arrowhead-open)"';
+      else if (t === 'association') markerAttr = ' marker-end="url(#export-arrow-assoc)"';
+      else if (t === 'er_many') markerAttr = ' marker-end="url(#export-crow)"';
+      else if (t === 'er_one') markerAttr = ' marker-end="url(#export-er-one)"';
+
+      if (fromEl.id === toEl.id) {
+        const { path, labelX, labelY } = selfLoopPath(fromEl, connectors, c);
+        svgStr += `<path d="${path}" fill="none" stroke="${strokeColor}" stroke-width="2.5"${dashAttr}${markerAttr} />`;
         if (c.text) {
-          svgStr += `<rect x="${x - c.text.length*4}" y="${y - 85}" width="${c.text.length*8}" height="20" fill="${labelBgColor}" rx="4" />`;
-          svgStr += `<text x="${x}" y="${y - 71}" fill="${textColor}" font-size="12" font-family="sans-serif" text-anchor="middle">${c.text}</text>`;
+          const labelW = Math.max(c.text.length * 8, 20);
+          svgStr += `<rect x="${labelX - labelW / 2}" y="${labelY - 12}" width="${labelW}" height="18" fill="${labelBgColor}" rx="3" />`;
+          svgStr += `<text x="${labelX}" y="${labelY + 2}" fill="${textColor}" font-size="11" font-family="monospace" text-anchor="middle">${escapeXml(c.text)}</text>`;
         }
       } else {
-        const x1 = fromEl.x + fromEl.width / 2;
-        const y1 = fromEl.y + fromEl.height / 2;
-        const x2 = toEl.x + toEl.width / 2;
-        const y2 = toEl.y + toEl.height / 2;
-        svgStr += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeColor}" stroke-width="3" marker-end="url(#export-arrowhead)" />`;
+        const { x1, y1, x2, y2 } = connectorEndpoints(fromEl, toEl, connectors, c);
+        svgStr += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${strokeColor}" stroke-width="2.5"${dashAttr}${markerAttr} />`;
         if (c.text) {
           const midX = (x1 + x2) / 2;
           const midY = (y1 + y2) / 2;
-          svgStr += `<rect x="${midX - c.text.length*4}" y="${midY - 10}" width="${c.text.length*8}" height="20" fill="${labelBgColor}" rx="4" />`;
-          svgStr += `<text x="${midX}" y="${midY + 4}" fill="${textColor}" font-size="12" font-family="sans-serif" text-anchor="middle">${c.text}</text>`;
+          const labelW = Math.max(c.text.length * 8, 20);
+          svgStr += `<rect x="${midX - labelW / 2}" y="${midY - 10}" width="${labelW}" height="18" fill="${labelBgColor}" rx="3" />`;
+          svgStr += `<text x="${midX}" y="${midY + 4}" fill="${textColor}" font-size="11" font-family="monospace" text-anchor="middle">${escapeXml(c.text)}</text>`;
         }
       }
     });
 
     elements.forEach(el => {
-      if (el.type === 'ellipse') {
+      const elStyle = el.style || {};
+      const fillColor = elStyle.backgroundColor || elBgColor;
+      const edgeColor = elStyle.borderColor || elStrokeColor;
+      const bw = elStyle.borderWidth || 2;
+      const fs = elStyle.fontSize || 13;
+
+      if (el.type === 'circle') {
+        const r = el.width / 2;
+        svgStr += `<circle cx="${el.x + r}" cy="${el.y + r}" r="${r}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += buildTextTspan(el.text, el.x + r, el.y + r + 4, textColor, fs);
+      } else if (el.type === 'diamond') {
         const cx = el.x + el.width / 2;
         const cy = el.y + el.height / 2;
-        const rx = el.width / 2;
-        const ry = el.height / 2;
-        svgStr += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${elBgColor}" stroke="${elStrokeColor}" stroke-width="2" />`;
-        svgStr += `<text x="${cx}" y="${cy + 4}" fill="${textColor}" font-size="14" font-family="sans-serif" text-anchor="middle">${el.text}</text>`;
-      } else if (el.type === 'circle') {
-        const r = el.width / 2;
-        svgStr += `<circle cx="${el.x + r}" cy="${el.y + r}" r="${r}" fill="${elBgColor}" stroke="${elStrokeColor}" stroke-width="2" />`;
-        svgStr += `<text x="${el.x + r}" y="${el.y + r + 4}" fill="${textColor}" font-size="14" font-family="sans-serif" text-anchor="middle">${el.text}</text>`;
-      } else if (el.type === 'participant') {
-        const hh = Math.min(48, Math.max(36, el.height * 0.12));
-        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${hh}" fill="${elBgColor}" stroke="${elStrokeColor}" stroke-width="2" />`;
-        svgStr += `<line x1="${el.x + el.width / 2}" y1="${el.y + hh}" x2="${el.x + el.width / 2}" y2="${el.y + el.height}" stroke="${elStrokeColor}" stroke-width="2" stroke-dasharray="6 5" />`;
-        svgStr += `<text x="${el.x + el.width / 2}" y="${el.y + hh / 2 + 4}" fill="${textColor}" font-size="12" font-family="sans-serif" text-anchor="middle">${el.text}</text>`;
-      } else if (el.type === 'actor') {
-        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${elBgColor}" stroke="${elStrokeColor}" stroke-width="2" rx="8" />`;
-        svgStr += `<text x="${el.x + el.width / 2}" y="${el.y + el.height - 10}" fill="${textColor}" font-size="11" font-family="sans-serif" text-anchor="middle">${el.text}</text>`;
-      } else if (el.type === 'package') {
-        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${elBgColor}" stroke="${elStrokeColor}" stroke-width="2" rx="8" />`;
-        const title = (el.text || '').split('\n')[0];
-        svgStr += `<text x="${el.x + 10}" y="${el.y + 20}" fill="${textColor}" font-size="12" font-family="sans-serif">${title}</text>`;
-      } else if (el.type === 'diamond') {
-        const cx = el.x + el.width/2;
-        const cy = el.y + el.height/2;
         const pts = `${cx},${el.y} ${el.x+el.width},${cy} ${cx},${el.y+el.height} ${el.x},${cy}`;
-        svgStr += `<polygon points="${pts}" fill="${elBgColor}" stroke="${elStrokeColor}" stroke-width="2" />`;
-        svgStr += `<text x="${cx}" y="${cy + 4}" fill="${textColor}" font-size="14" font-family="sans-serif" text-anchor="middle">${el.text}</text>`;
+        svgStr += `<polygon points="${pts}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += buildTextTspan(el.text, cx, cy + 4, textColor, fs);
+      } else if (el.type === 'class') {
+        const lines = String(el.text || '').split('\n');
+        const className = lines[0] || '';
+        const members = lines.slice(1);
+        const separatorY = el.y + 26;
+        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="6" />`;
+        svgStr += `<text x="${el.x + el.width/2}" y="${el.y + 17}" fill="${textColor}" font-size="${fs}" font-family="monospace" text-anchor="middle" font-weight="bold">${escapeXml(className)}</text>`;
+        if (members.length > 0) {
+          svgStr += `<line x1="${el.x}" y1="${separatorY}" x2="${el.x + el.width}" y2="${separatorY}" stroke="${edgeColor}" stroke-width="1" />`;
+          members.forEach((m, i) => {
+            svgStr += `<text x="${el.x + 8}" y="${separatorY + 16 + i * 16}" fill="${textColor}" font-size="${Math.max(fs - 1, 10)}" font-family="monospace">${escapeXml(m)}</text>`;
+          });
+        }
       } else {
-        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${elBgColor}" stroke="${elStrokeColor}" stroke-width="2" rx="8" />`;
-        svgStr += `<text x="${el.x + el.width/2}" y="${el.y + el.height/2 + 4}" fill="${textColor}" font-size="14" font-family="sans-serif" text-anchor="middle">${el.text}</text>`;
+        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="8" />`;
+        svgStr += buildTextTspan(el.text, el.x + el.width/2, el.y + el.height/2 + 4, textColor, fs);
       }
     });
 
@@ -536,103 +576,131 @@ export default function DiagramEditor({ template, elements: initialElements, con
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--canvas-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#1c1b1a' }}>
       {showExport && <ExportDialog onClose={() => setShowExport(false)} onExport={handleExport} />}
       {showCodeGen && <CodeGenModal elements={elements} connectors={connectors} onClose={() => setShowCodeGen(false)} />}
       {showValidation && <ValidationModal elements={elements} connectors={connectors} template={template} onClose={() => setShowValidation(false)} />}
       
-      <header style={{ padding: '1rem 2rem', borderBottom: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-surface)', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <button onClick={onBack} style={{ backgroundColor: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)', padding: '6px 12px' }}>
+      <header style={{ padding: '1rem 2rem', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button onClick={onBack} style={{ backgroundColor: 'transparent', color: '#fff', border: '1px solid #555', padding: '6px 12px' }}>
             &larr; Back
           </button>
-          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)' }}>Editor - {template}</h2>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#fff' }}>Editor - {template}</h2>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-           <ThemeToggle />
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+           <select
+             value={selectedConnectorType}
+             onChange={e => setSelectedConnectorType(e.target.value)}
+             title="Connector type used for new connections"
+             style={{ backgroundColor: '#222', color: '#ccc', border: '1px solid #555', padding: '6px 8px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', outline: 'none' }}
+           >
+             {CONNECTOR_TYPES.map(ct => (
+               <option key={ct.value} value={ct.value}>{ct.label}</option>
+             ))}
+           </select>
            <button 
              onClick={() => setConnectingFrom(selectedId)} 
              disabled={!selectedId}
              style={{ 
-                 backgroundColor: connectingFrom ? 'var(--accent-inverse-bg)' : 'var(--bg-hover)', 
-                 color: connectingFrom ? 'var(--accent-inverse-text)' : 'var(--text-primary)', 
-                 border: '1px solid var(--border-subtle)', 
+                 backgroundColor: connectingFrom ? '#fff' : '#333', 
+                 color: connectingFrom ? '#000' : '#fff', 
+                 border: `1px solid ${connectingFrom ? '#fff' : '#555'}`, 
                  padding: '6px 16px',
                  borderRadius: '8px',
                  opacity: selectedId ? 1 : 0.5,
-                 cursor: selectedId ? 'pointer' : 'not-allowed'
+                 cursor: selectedId ? 'pointer' : 'not-allowed',
+                 display: 'flex', alignItems: 'center', gap: '0.4rem'
              }}
            >
-             {connectingFrom ? 'Click target...' : 'Connect'}
+             <Link size={14} /> {connectingFrom ? 'Click target...' : 'Connect'}
            </button>
 
            {/* CASE Tool Buttons */}
-           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--divider)' }} />
+           <div style={{ width: '1px', height: '24px', backgroundColor: '#444' }} />
            <button
              onClick={() => setShowValidation(true)}
              title="Validate diagram structure and UML rules"
-             style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: 'var(--success-text)', border: '1px solid rgba(16, 185, 129, 0.35)', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+             style={{ backgroundColor: '#1a2a1a', color: '#7dce82', border: '1px solid #2a5a2a', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
            >
              <CheckSquare size={16} /> Validate
            </button>
            <button
              onClick={() => setShowCodeGen(true)}
              title="Generate Python class code from UML Class shapes"
-             style={{ backgroundColor: 'rgba(59, 130, 246, 0.12)', color: 'var(--code-syntax)', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+             style={{ backgroundColor: '#1a1a2a', color: '#7ec8e3', border: '1px solid #2a3a5a', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
            >
              <FileCode size={16} /> Generate Code
            </button>
-           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--divider)' }} />
+           <div style={{ width: '1px', height: '24px', backgroundColor: '#444' }} />
 
-           <button onClick={() => setShowExport(true)} style={{ backgroundColor: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)', padding: '6px 16px', borderRadius: '8px', cursor: 'pointer' }}>Export</button>
-           <button onClick={() => onSave(diagramId, elements, connectors)} style={{ backgroundColor: 'var(--accent-inverse-bg)', color: 'var(--accent-inverse-text)', border: '1px solid var(--border-strong)', padding: '6px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Save</button>
+           <button onClick={() => setShowExport(true)} style={{ backgroundColor: 'transparent', color: '#fff', border: '1px solid #555', padding: '6px 16px', borderRadius: '8px', cursor: 'pointer' }}>Export</button>
+           <button onClick={() => onSave(diagramId, elements, connectors)} style={{ backgroundColor: '#fff', color: '#000', border: 'none', padding: '6px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Save</button>
         </div>
       </header>
       
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <aside style={{ width: '250px', backgroundColor: 'var(--bg-surface)', borderRight: '1px solid var(--border-default)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', zIndex: 10 }}>
-          <h3 style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Shapes Palette</h3>
+        <aside style={{ width: '250px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', zIndex: 10 }}>
+          <h3 style={{ margin: 0, color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase' }}>Shapes Palette</h3>
           {SHAPE_TYPES.map(s => (
             <div 
               key={s.type}
               draggable 
               onDragStart={(e) => handleDragStartPalette(e, s.type)}
-              style={{ padding: '1rem', backgroundColor: 'var(--bg-muted)', border: '1px solid var(--border-strong)', borderRadius: s.type === 'circle' ? '40px' : '8px', cursor: 'grab', textAlign: 'center', color: 'var(--text-secondary)', userSelect: 'none' }}
+              style={{ padding: '1rem', backgroundColor: '#222', border: '1px solid #444', borderRadius: s.type === 'circle' ? '40px' : '8px', cursor: 'grab', textAlign: 'center', color: '#ccc', userSelect: 'none' }}
             >
               {s.label}
             </div>
           ))}
           
           {selectedId && (
-            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-default)', paddingTop: '1.5rem' }}>
-                <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Edit Element</h3>
+            <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
+                <h3 style={{ margin: '0 0 1rem 0', color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase' }}>Edit Element</h3>
                 <textarea 
                   value={elements.find(e => e.id === selectedId)?.text || ''} 
                   onChange={(e) => handleEditText(selectedId, e.target.value)}
                   rows={4}
-                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: 'var(--bg-muted)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', padding: '8px', resize: 'vertical' }}
+                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '8px', resize: 'vertical' }}
                 />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.8rem' }}>Press Backspace/Delete key to remove.</p>
+                <p style={{ color: '#888', fontSize: '0.8rem', marginTop: '0.8rem' }}>Press Backspace/Delete key to remove.</p>
             </div>
           )}
 
-          {selectedConnectorId && !selectedId && (
-            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-default)', paddingTop: '1.5rem' }}>
-                <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Edit Connector</h3>
-                <input 
-                  type="text" 
-                  value={connectors.find(c => c.id === selectedConnectorId)?.text || ''} 
-                  onChange={(e) => handleEditConnectorText(selectedConnectorId, e.target.value)}
-                  placeholder="Label..."
-                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: 'var(--bg-muted)' }}
-                />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.8rem' }}>Press Backspace/Delete key to remove.</p>
-            </div>
-          )}
+          {selectedConnectorId && !selectedId && (() => {
+            const selConn = connectors.find(c => c.id === selectedConnectorId);
+            return selConn ? (
+              <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <h3 style={{ margin: 0, color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase' }}>Edit Connector</h3>
+                <div>
+                  <label style={{ display: 'block', color: '#888', fontSize: '0.8rem', marginBottom: '0.3rem' }}>Type</label>
+                  <select
+                    value={selConn.type || 'arrow'}
+                    onChange={e => handleUpdateConnector(selectedConnectorId, { type: e.target.value })}
+                    style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '8px', outline: 'none' }}
+                  >
+                    {CONNECTOR_TYPES.map(ct => (
+                      <option key={ct.value} value={ct.value}>{ct.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#888', fontSize: '0.8rem', marginBottom: '0.3rem' }}>Label</label>
+                  <input 
+                    type="text" 
+                    value={selConn.text || ''} 
+                    onChange={e => handleEditConnectorText(selectedConnectorId, e.target.value)}
+                    placeholder="e.g. extends, uses, 1..*"
+                    style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '8px', outline: 'none' }}
+                  />
+                </div>
+                <p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>Press Backspace/Delete key to remove.</p>
+              </div>
+            ) : null;
+          })()}
           
           {!selectedId && !selectedConnectorId && (
-            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-default)', paddingTop: '1.5rem' }}>
-              <p style={{ color: 'var(--text-faint)', fontSize: '0.9rem', margin: 0 }}>Select an element or connector to edit.</p>
+            <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
+              <p style={{ color: '#666', fontSize: '0.9rem', margin: 0 }}>Select an element or connector to edit.</p>
             </div>
           )}
         </aside>
@@ -647,59 +715,92 @@ export default function DiagramEditor({ template, elements: initialElements, con
           onClick={() => { setSelectedId(null); setSelectedConnectorId(null); setConnectingFrom(null); }}
           style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: connectingFrom ? 'crosshair' : (draggingId ? 'grabbing' : 'auto') }}
         >
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'radial-gradient(var(--canvas-grid) 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.55, pointerEvents: 'none' }}></div>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'radial-gradient(#444 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.5, pointerEvents: 'none' }}></div>
 
           <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }}>
             <defs>
-              <marker id="arrowhead-normal" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="var(--connector-normal)" />
+              <marker id="arrow-filled-normal" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#aaa" />
               </marker>
-              <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="var(--connector-selected)" />
+              <marker id="arrow-filled-selected" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#fff" />
+              </marker>
+              <marker id="arrow-inherit-normal" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+                <polygon points="0 0, 12 4.5, 0 9" fill="#1c1b1a" stroke="#aaa" strokeWidth="1.5" />
+              </marker>
+              <marker id="arrow-inherit-selected" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+                <polygon points="0 0, 12 4.5, 0 9" fill="#1c1b1a" stroke="#fff" strokeWidth="1.5" />
+              </marker>
+              <marker id="arrow-assoc-normal" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                <polygon points="0 0, 8 3.5, 0 7" fill="#1c1b1a" stroke="#aaa" strokeWidth="1.2" />
+              </marker>
+              <marker id="arrow-assoc-selected" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                <polygon points="0 0, 8 3.5, 0 7" fill="#1c1b1a" stroke="#fff" strokeWidth="1.2" />
+              </marker>
+              <marker id="crow-normal" markerWidth="18" markerHeight="14" refX="16" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M 0 0 L 6 7 L 0 14 M 6 7 L 16 7" fill="none" stroke="#aaa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter" />
+              </marker>
+              <marker id="crow-selected" markerWidth="18" markerHeight="14" refX="16" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M 0 0 L 6 7 L 0 14 M 6 7 L 16 7" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter" />
+              </marker>
+              <marker id="er-one-bar-normal" markerWidth="8" markerHeight="16" refX="5" refY="8" orient="auto" markerUnits="userSpaceOnUse">
+                <line x1="4" y1="1" x2="4" y2="15" stroke="#aaa" strokeWidth="2.5" strokeLinecap="square" />
+              </marker>
+              <marker id="er-one-bar-selected" markerWidth="8" markerHeight="16" refX="5" refY="8" orient="auto" markerUnits="userSpaceOnUse">
+                <line x1="4" y1="1" x2="4" y2="15" stroke="#fff" strokeWidth="2.5" strokeLinecap="square" />
               </marker>
             </defs>
             {connectors.map(c => {
                const fromEl = elements.find(e => e.id === c.fromElement);
                const toEl = elements.find(e => e.id === c.toElement);
                if (!fromEl || !toEl) return null;
-               
+
                const isSelected = c.id === selectedConnectorId;
-               const strokeColor = isSelected ? 'var(--connector-selected)' : 'var(--connector-normal)';
-               
-               if (fromEl === toEl) {
-                 const x = fromEl.x + fromEl.width / 2;
-                 const y = fromEl.y; 
-                 const path = `M ${x} ${y} C ${x - 60} ${y - 100}, ${x + 60} ${y - 100}, ${x} ${y}`;
+               const strokeColor = isSelected ? '#fff' : '#aaa';
+               const t = c.type || 'arrow';
+               const isDependency = t === 'dependency';
+               const isInheritance = t === 'inheritance';
+               const strokeDash = isDependency ? '8 4' : undefined;
+               const suf = isSelected ? 'selected' : 'normal';
+               let markerEnd;
+               if (t === 'inheritance') markerEnd = `url(#arrow-inherit-${suf})`;
+               else if (t === 'association') markerEnd = `url(#arrow-assoc-${suf})`;
+               else if (t === 'er_many') markerEnd = `url(#crow-${suf})`;
+               else if (t === 'er_one') markerEnd = `url(#er-one-bar-${suf})`;
+               else markerEnd = `url(#arrow-filled-${suf})`;
+
+               if (fromEl.id === toEl.id) {
+                 const { path, labelX, labelY } = selfLoopPath(fromEl, connectors, c);
                  return (
                     <g key={c.id}>
-                        <path d={path} fill="none" stroke={strokeColor} strokeWidth="3" markerEnd={`url(#arrowhead-${isSelected ? 'selected' : 'normal'})`} pointerEvents="stroke" onClick={(e) => handlePointerDownConnector(e, c.id)} cursor="pointer" />
+                        <path d={path} fill="none" stroke={strokeColor} strokeWidth="2.5" strokeDasharray={strokeDash} markerEnd={markerEnd} pointerEvents="none" />
                         <path d={path} fill="none" stroke="transparent" strokeWidth="15" pointerEvents="stroke" onClick={(e) => handlePointerDownConnector(e, c.id)} cursor="pointer" />
                         {c.text && (
                            <g pointerEvents="none">
-                             <rect x={x - (c.text.length * 4)} y={y - 85} width={c.text.length * 8} height="20" fill="var(--connector-label-bg)" rx="4" />
-                             <text x={x} y={y - 71} fill="var(--diagram-shape-text)" fontSize="12" textAnchor="middle">{c.text}</text>
+                             <rect x={labelX - Math.max(c.text.length * 4, 10)} y={labelY - 10} width={Math.max(c.text.length * 8, 20)} height="18" fill="#111" rx="4" />
+                             <text x={labelX} y={labelY + 4} fill="#ccc" fontSize="11" textAnchor="middle" fontFamily="monospace">{c.text}</text>
                            </g>
                         )}
                     </g>
-                 )
+                 );
                }
-               
-               const x1 = fromEl.x + fromEl.width / 2;
-               const y1 = fromEl.y + fromEl.height / 2;
-               const x2 = toEl.x + toEl.width / 2;
-               const y2 = toEl.y + toEl.height / 2;
+
+               const { x1, y1, x2, y2 } = connectorEndpoints(fromEl, toEl, connectors, c);
                const midX = (x1 + x2) / 2;
                const midY = (y1 + y2) / 2;
-               
+
                return (
                  <g key={c.id}>
-                   <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={strokeColor} strokeWidth="3" pointerEvents="stroke" markerEnd={`url(#arrowhead-${isSelected ? 'selected' : 'normal'})`} />
+                   <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={strokeColor} strokeWidth="2.5" strokeDasharray={strokeDash} pointerEvents="none" markerEnd={markerEnd} />
                    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth="20" pointerEvents="stroke" onClick={(e) => handlePointerDownConnector(e, c.id)} cursor="pointer" />
                    {c.text && (
                      <g pointerEvents="none">
-                       <rect x={midX - (c.text.length * 4)} y={midY - 10} width={c.text.length * 8} height="20" fill="var(--connector-label-bg)" rx="4" />
-                       <text x={midX} y={midY + 4} fill="var(--diagram-shape-text)" fontSize="12" textAnchor="middle">{c.text}</text>
+                       <rect x={midX - Math.max(c.text.length * 4, 10)} y={midY - 10} width={Math.max(c.text.length * 8, 20)} height="20" fill="#111" rx="4" />
+                       <text x={midX} y={midY + 4} fill="#ccc" fontSize="11" textAnchor="middle" fontFamily="monospace">{c.text}</text>
                      </g>
+                   )}
+                   {isInheritance && (
+                     <text x={midX + 8} y={midY - 14} fill="#7ec8e3" fontSize="10" textAnchor="middle" fontFamily="monospace" pointerEvents="none">«extends»</text>
                    )}
                  </g>
                );
@@ -709,16 +810,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
           {elements.map((el) => {
             const isSelected = el.id === selectedId;
             const isClassShape = el.type === 'class';
-            const isParticipant = el.type === 'participant';
-            const isActor = el.type === 'actor';
-            const isPackageShape = el.type === 'package';
-            const ink = isSelected ? 'var(--border-emphasis)' : (el.style?.borderColor || '#555555');
-            const style = el.style || {
-              backgroundColor: isClassShape ? defaultClassFill : defaultShapeFill,
-              borderColor: isClassShape ? defaultClassBorder : '#555555',
-              borderWidth: 2,
-              fontSize: 14,
-            };
+            const style = el.style || { backgroundColor: isClassShape ? '#0d1a2a' : '#16161e', borderColor: isClassShape ? '#3a6ea8' : '#555555', borderWidth: 2, fontSize: 14 };
 
             let shapeStyle = {
               position: 'absolute',
@@ -727,133 +819,34 @@ export default function DiagramEditor({ template, elements: initialElements, con
               width: `${el.width}px`,
               height: `${el.height}px`,
               backgroundColor: style.backgroundColor,
-              border: `${style.borderWidth}px solid ${ink}`,
-              color: 'var(--diagram-shape-text)',
-              boxShadow: isSelected ? '0 0 0 2px var(--focus-ring)' : '0 4px 12px var(--shadow-card)',
+              border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`,
+              color: '#fff',
+              boxShadow: isSelected ? '0 0 0 2px rgba(255,255,255,0.2)' : '0 4px 12px rgba(0,0,0,0.5)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               textAlign: 'center',
-              zIndex: isSelected ? 10 : isPackageShape ? 3 : 1,
+              zIndex: isSelected ? 10 : 1,
               cursor: draggingId === el.id ? 'grabbing' : 'grab',
               userSelect: 'none',
-              padding: isParticipant || isPackageShape ? 0 : '0.5rem',
-              boxSizing: 'border-box',
-              overflow: isPackageShape ? 'visible' : 'hidden',
+              padding: '0.5rem',
+              boxSizing: 'border-box'
             };
 
             if (el.type === 'circle') shapeStyle.borderRadius = '50%';
-            else if (el.type === 'ellipse') shapeStyle.borderRadius = '999px';
             else if (el.type === 'diamond') shapeStyle.transform = 'rotate(45deg)';
             else shapeStyle.borderRadius = '8px';
 
-            const labelStyle = {
-              display: 'block',
-              wordWrap: 'break-word',
-              overflow: 'hidden',
-              fontSize: `${style.fontSize}px`,
-              whiteSpace: 'pre-wrap',
-              lineHeight: '1.35',
-              fontWeight: el.type === 'node' ? 600 : undefined,
-            };
-
-            let inner = (
-              <div style={el.type === 'diamond' ? { transform: 'rotate(-45deg)', maxWidth: '70%', maxHeight: '70%' } : {}}>
-                <strong style={labelStyle}>{el.text}</strong>
-              </div>
-            );
-
-            if (isParticipant) {
-              inner = (
-                <>
-                  <div style={{ flexShrink: 0, padding: '10px 8px', borderBottom: `2px solid ${ink}`, textAlign: 'center', fontWeight: 600, fontSize: `${style.fontSize}px`, whiteSpace: 'pre-wrap', lineHeight: 1.25 }}>
-                    {el.text}
-                  </div>
-                  <div style={{ flex: 1, position: 'relative', minHeight: 48 }}>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '50%',
-                        top: 0,
-                        bottom: 0,
-                        width: 0,
-                        marginLeft: '-1px',
-                        borderLeft: `2px dashed var(--connector-normal)`,
-                      }}
-                    />
-                  </div>
-                </>
-              );
-              shapeStyle.flexDirection = 'column';
-              shapeStyle.alignItems = 'stretch';
-              shapeStyle.justifyContent = 'flex-start';
-              shapeStyle.backgroundColor = style.backgroundColor || defaultShapeFill;
-            }
-
-            if (isActor) {
-              inner = (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%', padding: '6px 4px 8px', boxSizing: 'border-box' }}>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 8 }}>
-                    <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${ink}`, marginBottom: 6, backgroundColor: style.backgroundColor }} />
-                    <div style={{ width: 3, height: 26, borderRadius: 2, backgroundColor: ink }} />
-                    <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
-                      <div style={{ width: 3, height: 18, borderRadius: 2, backgroundColor: ink, transform: 'rotate(-42deg)', transformOrigin: 'top center' }} />
-                      <div style={{ width: 3, height: 18, borderRadius: 2, backgroundColor: ink, transform: 'rotate(42deg)', transformOrigin: 'top center' }} />
-                    </div>
-                    <div style={{ display: 'flex', gap: 22, marginTop: 8 }}>
-                      <div style={{ width: 3, height: 22, borderRadius: 2, backgroundColor: ink }} />
-                      <div style={{ width: 3, height: 22, borderRadius: 2, backgroundColor: ink }} />
-                    </div>
-                  </div>
-                  <strong style={{ ...labelStyle, fontSize: `${Math.min(style.fontSize, 13)}px`, textAlign: 'center', maxWidth: '140px' }}>{el.text}</strong>
-                </div>
-              );
-              shapeStyle.overflow = 'hidden';
-            }
-
-            if (isPackageShape) {
-              const tabTitle = (el.text || '').split('\n')[0];
-              const pkgBg = style.backgroundColor || defaultShapeFill;
-              inner = (
-                <div style={{ position: 'relative', width: '100%', height: '100%', boxSizing: 'border-box', paddingTop: 8 }}>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 10,
-                      bottom: '100%',
-                      marginBottom: `-${style.borderWidth}px`,
-                      padding: '4px 12px',
-                      backgroundColor: pkgBg,
-                      border: `${style.borderWidth}px solid ${ink}`,
-                      borderBottom: 'none',
-                      borderRadius: '6px 8px 0 0',
-                      fontSize: `${Math.min(style.fontSize, 13)}px`,
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                      maxWidth: '90%',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {tabTitle}
-                  </div>
-                </div>
-              );
-              shapeStyle.flexDirection = 'column';
-              shapeStyle.justifyContent = 'flex-start';
-              shapeStyle.alignItems = 'stretch';
-              shapeStyle.padding = '28px 12px 12px';
-              shapeStyle.overflow = 'visible';
-            }
-
             return (
               <div key={el.id} style={shapeStyle} onPointerDown={(e) => handlePointerDownElement(e, el.id)} onClick={(e) => e.stopPropagation()}>
-                {inner}
+                <div style={el.type === 'diamond' ? { transform: 'rotate(-45deg)' } : {}}>
+                  <strong style={{ display: 'block', wordWrap: 'break-word', overflow: 'hidden', fontSize: `${style.fontSize}px`, whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{el.text}</strong>
+                </div>
 
                 {isSelected && !draggingId && (
                    <div 
                      onPointerDown={(e) => { e.stopPropagation(); setConnectingFrom(el.id); }}
-                     style={{ position: 'absolute', right: '-12px', top: 'calc(50% - 12px)', width: '24px', height: '24px', backgroundColor: 'var(--bg-hover)', borderRadius: '50%', cursor: 'crosshair', zIndex: 20, border: '2px solid var(--border-emphasis)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: 'var(--text-primary)' }}
+                     style={{ position: 'absolute', right: '-12px', top: 'calc(50% - 12px)', width: '24px', height: '24px', backgroundColor: '#444', borderRadius: '50%', cursor: 'crosshair', zIndex: 20, border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#fff' }}
                      title="Click and then click target to connect"
                    >+</div>
                 )}
