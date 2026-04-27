@@ -39,6 +39,10 @@ const SHAPE_TYPES = [
 
 const SHAPE_MAP = Object.fromEntries(SHAPE_TYPES.map((s) => [s.type, s]));
 
+/** UML Class / ER entity: name band + attribute list */
+const UML_CLASS_HEADER_PX = 34;
+const UML_CLASS_ATTR_LINE_PX = 17;
+
 const PALETTE_BY_TEMPLATE = {
   blank: ['rectangle', 'circle', 'diamond', 'start', 'end'],
   flowchart: ['start', 'rectangle', 'diamond', 'circle', 'end'],
@@ -396,14 +400,25 @@ export default function DiagramEditor({ template, elements: initialElements, con
       if (el.id === id) {
         const lines = newText.split('\n');
         const maxLen = Math.max(...lines.map(l => l.length), 1);
-        
+
         let shapeDef = SHAPE_MAP[el.type];
         const minW = shapeDef ? shapeDef.defaultWidth : 120;
         const minH = shapeDef ? shapeDef.defaultHeight : 60;
-        
+
+        if (el.type === 'class' || el.type === 'entity') {
+          const attrs = Math.max(0, lines.length - 1);
+          const nameW = (lines[0] || '').length * 8 + 36;
+          const attrsW =
+            attrs > 0 ? Math.max(...lines.slice(1).map((l) => l.length)) * 7.5 + 28 : minW * 0.85;
+          const newWidth = Math.max(minW, nameW, attrsW);
+          const bodyH = attrs * UML_CLASS_ATTR_LINE_PX + (attrs > 0 ? 14 : 8);
+          const newHeight = Math.max(minH, UML_CLASS_HEADER_PX + bodyH);
+          return { ...el, text: newText, width: newWidth, height: newHeight };
+        }
+
         const newWidth = Math.max(minW, maxLen * 8.5 + 40);
         const newHeight = Math.max(minH, lines.length * 20 + 40);
-        
+
         return { ...el, text: newText, width: newWidth, height: newHeight };
       }
       return el;
@@ -579,19 +594,18 @@ export default function DiagramEditor({ template, elements: initialElements, con
         const pts = `${cx},${el.y} ${el.x+el.width},${cy} ${cx},${el.y+el.height} ${el.x},${cy}`;
         svgStr += `<polygon points="${pts}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
         svgStr += buildTextTspan(el.text, cx, cy + 4, textColor, fs);
-      } else if (el.type === 'class') {
+      } else if (el.type === 'class' || el.type === 'entity') {
         const lines = String(el.text || '').split('\n');
         const className = lines[0] || '';
         const members = lines.slice(1);
-        const separatorY = el.y + 26;
+        const headerH = UML_CLASS_HEADER_PX;
+        const separatorY = el.y + headerH;
         svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="6" />`;
-        svgStr += `<text x="${el.x + el.width/2}" y="${el.y + 17}" fill="${textColor}" font-size="${fs}" font-family="monospace" text-anchor="middle" font-weight="bold">${escapeXml(className)}</text>`;
-        if (members.length > 0) {
-          svgStr += `<line x1="${el.x}" y1="${separatorY}" x2="${el.x + el.width}" y2="${separatorY}" stroke="${edgeColor}" stroke-width="1" />`;
-          members.forEach((m, i) => {
-            svgStr += `<text x="${el.x + 8}" y="${separatorY + 16 + i * 16}" fill="${textColor}" font-size="${Math.max(fs - 1, 10)}" font-family="monospace">${escapeXml(m)}</text>`;
-          });
-        }
+        svgStr += `<text x="${el.x + el.width / 2}" y="${el.y + 22}" fill="${textColor}" font-size="${fs}" font-family="monospace" text-anchor="middle" font-weight="bold">${escapeXml(className)}</text>`;
+        svgStr += `<line x1="${el.x}" y1="${separatorY}" x2="${el.x + el.width}" y2="${separatorY}" stroke="${edgeColor}" stroke-width="1.5" />`;
+        members.forEach((m, i) => {
+          svgStr += `<text x="${el.x + 10}" y="${separatorY + 14 + i * UML_CLASS_ATTR_LINE_PX}" fill="${textColor}" font-size="${Math.max(fs - 1, 10)}" font-family="monospace">${escapeXml(m)}</text>`;
+        });
       } else {
         svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="8" />`;
         svgStr += buildTextTspan(el.text, el.x + el.width/2, el.y + el.height/2 + 4, textColor, fs);
@@ -785,7 +799,208 @@ export default function DiagramEditor({ template, elements: initialElements, con
         >
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'radial-gradient(#444 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.5, pointerEvents: 'none' }}></div>
 
-          <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }}>
+          {elements.map((el) => {
+            const isSelected = el.id === selectedId;
+            const isClassShape = el.type === 'class' || el.type === 'entity';
+            const style = el.style || { backgroundColor: isClassShape ? '#0d1a2a' : '#16161e', borderColor: isClassShape ? '#3a6ea8' : '#555555', borderWidth: 2, fontSize: 14 };
+
+            let shapeStyle = {
+              position: 'absolute',
+              left: `${el.x}px`,
+              top: `${el.y}px`,
+              width: `${el.width}px`,
+              height: `${el.height}px`,
+              backgroundColor: style.backgroundColor,
+              border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`,
+              color: '#fff',
+              boxShadow: isSelected ? '0 0 0 2px rgba(255,255,255,0.2)' : '0 4px 12px rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              zIndex: isSelected ? 3 : 1,
+              cursor: draggingId === el.id ? 'grabbing' : 'grab',
+              userSelect: 'none',
+              padding: '0.5rem',
+              boxSizing: 'border-box'
+            };
+
+            if (el.type === 'circle') shapeStyle.borderRadius = '50%';
+            else if (el.type === 'ellipse') shapeStyle.borderRadius = '999px / 70%';
+            else if (el.type === 'diamond') shapeStyle.transform = 'rotate(45deg)';
+            else if (el.type === 'participant') {
+              shapeStyle.borderRadius = '4px';
+              shapeStyle.borderStyle = 'solid';
+              shapeStyle.flexDirection = 'column';
+              shapeStyle.alignItems = 'stretch';
+              shapeStyle.justifyContent = 'flex-start';
+              shapeStyle.padding = '0';
+            } else if (el.type === 'actor') {
+              shapeStyle.padding = '8px';
+              shapeStyle.flexDirection = 'column';
+              shapeStyle.justifyContent = 'flex-start';
+            } else if (el.type === 'class' || el.type === 'entity') {
+              shapeStyle.borderRadius = '6px';
+              shapeStyle.flexDirection = 'column';
+              shapeStyle.alignItems = 'stretch';
+              shapeStyle.justifyContent = 'flex-start';
+              shapeStyle.padding = '0';
+              shapeStyle.textAlign = 'left';
+            } else if (el.type === 'database') {
+              shapeStyle.borderRadius = '16px / 12px';
+            } else {
+              shapeStyle.borderRadius = '8px';
+            }
+
+            return (
+              <div key={el.id} style={shapeStyle} onPointerDown={(e) => handlePointerDownElement(e, el.id)} onClick={(e) => e.stopPropagation()}>
+                {el.type === 'package' && (
+                  <div style={{ position: 'absolute', top: '-2px', left: '12px', width: '64px', height: '18px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderBottom: 'none', borderRadius: '6px 6px 0 0', backgroundColor: style.backgroundColor }} />
+                )}
+                {el.type === 'component' && (
+                  <>
+                    <div style={{ position: 'absolute', right: '8px', top: '10px', width: '18px', height: '14px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '2px' }} />
+                    <div style={{ position: 'absolute', right: '13px', top: '13px', width: '8px', height: '3px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '1px', backgroundColor: style.backgroundColor }} />
+                    <div style={{ position: 'absolute', right: '13px', top: '20px', width: '8px', height: '3px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '1px', backgroundColor: style.backgroundColor }} />
+                  </>
+                )}
+                {el.type === 'participant' ? (
+                  <>
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        padding: '10px 8px',
+                        borderBottom: `2px solid ${isSelected ? '#ffffff' : style.borderColor}`,
+                        fontWeight: 600,
+                        fontSize: `${Math.min(style.fontSize, 13)}px`,
+                        textAlign: 'center',
+                        lineHeight: 1.25,
+                      }}
+                    >
+                      {el.text}
+                    </div>
+                    <div style={{ flex: 1, position: 'relative', minHeight: 24 }}>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          top: 0,
+                          bottom: 0,
+                          width: 0,
+                          borderLeft: `2px dashed ${isSelected ? 'rgba(255,255,255,0.85)' : style.borderColor}`,
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : el.type === 'actor' ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      height: '100%',
+                      width: '100%',
+                      gap: 10,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <User
+                      size={Math.min(Math.min(el.width, el.height) * 0.42, 44)}
+                      strokeWidth={2}
+                      color={isSelected ? '#fff' : style.borderColor}
+                      style={{ flexShrink: 0 }}
+                      aria-hidden
+                    />
+                    <strong
+                      style={{
+                        marginTop: 'auto',
+                        fontSize: `${Math.min(style.fontSize, 13)}px`,
+                        textAlign: 'center',
+                        lineHeight: 1.35,
+                        wordWrap: 'break-word',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {el.text}
+                    </strong>
+                  </div>
+                ) : el.type === 'class' || el.type === 'entity' ? (
+                  (() => {
+                    const raw = String(el.text ?? '');
+                    const lines = raw.split('\n');
+                    const title =
+                      lines[0]?.trim() !== ''
+                        ? lines[0]
+                        : el.type === 'entity'
+                          ? 'Entity'
+                          : 'ClassName';
+                    const attrs = lines.slice(1);
+                    const edgeCol = isSelected ? '#ffffff' : style.borderColor;
+                    return (
+                      <>
+                        <div
+                          style={{
+                            flexShrink: 0,
+                            minHeight: UML_CLASS_HEADER_PX - 8,
+                            padding: '8px 10px 7px',
+                            fontWeight: 700,
+                            fontSize: `${Math.min(style.fontSize + 1, 15)}px`,
+                            textAlign: 'center',
+                            borderBottom: `1px solid ${edgeCol}`,
+                            lineHeight: 1.25,
+                            fontFamily: 'ui-monospace, monospace',
+                          }}
+                        >
+                          {title}
+                        </div>
+                        <div
+                          style={{
+                            flex: 1,
+                            minHeight: attrs.length ? undefined : 10,
+                            padding: '8px 10px 10px',
+                            fontSize: `${Math.max(style.fontSize - 1, 11)}px`,
+                            fontFamily: 'ui-monospace, monospace',
+                            lineHeight: `${UML_CLASS_ATTR_LINE_PX}px`,
+                            whiteSpace: 'pre-wrap',
+                            color: '#dbeafe',
+                          }}
+                        >
+                          {attrs.length > 0 ? attrs.join('\n') : ' '}
+                        </div>
+                      </>
+                    );
+                  })()
+                ) : (
+                  <div style={el.type === 'diamond' ? { transform: 'rotate(-45deg)' } : {}}>
+                    <strong
+                      style={{
+                        display: 'block',
+                        wordWrap: 'break-word',
+                        overflow: 'hidden',
+                        fontSize: `${style.fontSize}px`,
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: '1.4',
+                      }}
+                    >
+                      {el.text}
+                    </strong>
+                  </div>
+                )}
+
+                {isSelected && !draggingId && (
+                   <div 
+                     onPointerDown={(e) => { e.stopPropagation(); setConnectingFrom(el.id); }}
+                     style={{ position: 'absolute', right: '-12px', top: 'calc(50% - 12px)', width: '24px', height: '24px', backgroundColor: '#444', borderRadius: '50%', cursor: 'crosshair', zIndex: 20, border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#fff' }}
+                     title="Click and then click target to connect"
+                   >+</div>
+                )}
+              </div>
+            );
+          })}
+
+          <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }}>
             <defs>
               <marker id="arrow-filled-normal" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
                 <polygon points="0 0, 10 3.5, 0 7" fill="#aaa" />
@@ -874,154 +1089,6 @@ export default function DiagramEditor({ template, elements: initialElements, con
                );
             })}
           </svg>
-
-          {elements.map((el) => {
-            const isSelected = el.id === selectedId;
-            const isClassShape = el.type === 'class';
-            const style = el.style || { backgroundColor: isClassShape ? '#0d1a2a' : '#16161e', borderColor: isClassShape ? '#3a6ea8' : '#555555', borderWidth: 2, fontSize: 14 };
-
-            let shapeStyle = {
-              position: 'absolute',
-              left: `${el.x}px`,
-              top: `${el.y}px`,
-              width: `${el.width}px`,
-              height: `${el.height}px`,
-              backgroundColor: style.backgroundColor,
-              border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`,
-              color: '#fff',
-              boxShadow: isSelected ? '0 0 0 2px rgba(255,255,255,0.2)' : '0 4px 12px rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              zIndex: isSelected ? 10 : 1,
-              cursor: draggingId === el.id ? 'grabbing' : 'grab',
-              userSelect: 'none',
-              padding: '0.5rem',
-              boxSizing: 'border-box'
-            };
-
-            if (el.type === 'circle') shapeStyle.borderRadius = '50%';
-            else if (el.type === 'ellipse') shapeStyle.borderRadius = '999px / 70%';
-            else if (el.type === 'diamond') shapeStyle.transform = 'rotate(45deg)';
-            else if (el.type === 'participant') {
-              shapeStyle.borderRadius = '4px';
-              shapeStyle.borderStyle = 'solid';
-              shapeStyle.flexDirection = 'column';
-              shapeStyle.alignItems = 'stretch';
-              shapeStyle.justifyContent = 'flex-start';
-              shapeStyle.padding = '0';
-            } else if (el.type === 'actor') {
-              shapeStyle.padding = '8px';
-              shapeStyle.flexDirection = 'column';
-              shapeStyle.justifyContent = 'flex-start';
-            } else if (el.type === 'database') {
-              shapeStyle.borderRadius = '16px / 12px';
-            } else {
-              shapeStyle.borderRadius = '8px';
-            }
-
-            return (
-              <div key={el.id} style={shapeStyle} onPointerDown={(e) => handlePointerDownElement(e, el.id)} onClick={(e) => e.stopPropagation()}>
-                {el.type === 'package' && (
-                  <div style={{ position: 'absolute', top: '-2px', left: '12px', width: '64px', height: '18px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderBottom: 'none', borderRadius: '6px 6px 0 0', backgroundColor: style.backgroundColor }} />
-                )}
-                {el.type === 'component' && (
-                  <>
-                    <div style={{ position: 'absolute', right: '8px', top: '10px', width: '18px', height: '14px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '2px' }} />
-                    <div style={{ position: 'absolute', right: '13px', top: '13px', width: '8px', height: '3px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '1px', backgroundColor: style.backgroundColor }} />
-                    <div style={{ position: 'absolute', right: '13px', top: '20px', width: '8px', height: '3px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '1px', backgroundColor: style.backgroundColor }} />
-                  </>
-                )}
-                {el.type === 'participant' ? (
-                  <>
-                    <div
-                      style={{
-                        flexShrink: 0,
-                        padding: '10px 8px',
-                        borderBottom: `2px solid ${isSelected ? '#ffffff' : style.borderColor}`,
-                        fontWeight: 600,
-                        fontSize: `${Math.min(style.fontSize, 13)}px`,
-                        textAlign: 'center',
-                        lineHeight: 1.25,
-                      }}
-                    >
-                      {el.text}
-                    </div>
-                    <div style={{ flex: 1, position: 'relative', minHeight: 24 }}>
-                      <div
-                        style={{
-                          position: 'absolute',
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          top: 0,
-                          bottom: 0,
-                          width: 0,
-                          borderLeft: `2px dashed ${isSelected ? 'rgba(255,255,255,0.85)' : style.borderColor}`,
-                        }}
-                      />
-                    </div>
-                  </>
-                ) : el.type === 'actor' ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      height: '100%',
-                      width: '100%',
-                      gap: 10,
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <User
-                      size={Math.min(Math.min(el.width, el.height) * 0.42, 44)}
-                      strokeWidth={2}
-                      color={isSelected ? '#fff' : style.borderColor}
-                      style={{ flexShrink: 0 }}
-                      aria-hidden
-                    />
-                    <strong
-                      style={{
-                        marginTop: 'auto',
-                        fontSize: `${Math.min(style.fontSize, 13)}px`,
-                        textAlign: 'center',
-                        lineHeight: 1.35,
-                        wordWrap: 'break-word',
-                        whiteSpace: 'pre-wrap',
-                      }}
-                    >
-                      {el.text}
-                    </strong>
-                  </div>
-                ) : (
-                  <div style={el.type === 'diamond' ? { transform: 'rotate(-45deg)' } : {}}>
-                    <strong
-                      style={{
-                        display: 'block',
-                        wordWrap: 'break-word',
-                        overflow: 'hidden',
-                        fontSize: `${style.fontSize}px`,
-                        whiteSpace: 'pre-wrap',
-                        lineHeight: '1.4',
-                      }}
-                    >
-                      {el.text}
-                    </strong>
-                  </div>
-                )}
-
-                {isSelected && !draggingId && (
-                   <div 
-                     onPointerDown={(e) => { e.stopPropagation(); setConnectingFrom(el.id); }}
-                     style={{ position: 'absolute', right: '-12px', top: 'calc(50% - 12px)', width: '24px', height: '24px', backgroundColor: '#444', borderRadius: '50%', cursor: 'crosshair', zIndex: 20, border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#fff' }}
-                     title="Click and then click target to connect"
-                   >+</div>
-                )}
-              </div>
-            );
-          })}
         </main>
         
         {/* Right Properties Panel */}

@@ -84,6 +84,7 @@ export function borderToward(el, targetX, targetY) {
     if (horiz && targetY >= topBody - 4) {
       const yLine = Math.min(Math.max(targetY, topBody), el.y + el.height - 2);
       const sign = dx >= 0 ? 1 : -1;
+      const hw = el.width / 2;
       return { x: lx + sign * hw, y: yLine };
     }
     const rectHw = el.width / 2;
