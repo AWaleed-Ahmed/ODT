@@ -22,6 +22,11 @@ const CONNECTOR_TYPES = [
 
 const SHAPE_TYPES = [
   { type: 'class', label: 'UML Class', defaultWidth: 150, defaultHeight: 80 },
+  { type: 'component', label: 'UML Component', defaultWidth: 190, defaultHeight: 110 },
+  { type: 'package', label: 'UML Package', defaultWidth: 220, defaultHeight: 150 },
+  { type: 'participant', label: 'Participant', defaultWidth: 110, defaultHeight: 360 },
+  { type: 'ellipse', label: 'Use Case', defaultWidth: 130, defaultHeight: 90 },
+  { type: 'actor', label: 'Actor', defaultWidth: 70, defaultHeight: 120 },
   { type: 'rectangle', label: 'Rectangle', defaultWidth: 120, defaultHeight: 60 },
   { type: 'circle', label: 'Circle / State', defaultWidth: 90, defaultHeight: 90 },
   { type: 'diamond', label: 'Decision', defaultWidth: 100, defaultHeight: 100 },
@@ -31,6 +36,31 @@ const SHAPE_TYPES = [
   { type: 'node', label: 'Arch. Component', defaultWidth: 130, defaultHeight: 56 },
   { type: 'database', label: 'Database', defaultWidth: 120, defaultHeight: 72 },
 ];
+
+const SHAPE_MAP = Object.fromEntries(SHAPE_TYPES.map((s) => [s.type, s]));
+
+const PALETTE_BY_TEMPLATE = {
+  blank: ['rectangle', 'circle', 'diamond', 'start', 'end'],
+  flowchart: ['start', 'rectangle', 'diamond', 'circle', 'end'],
+  uml: ['class', 'component', 'package'],
+  'uml class diagram': ['class', 'component', 'package'],
+  usecase: ['actor', 'ellipse', 'rectangle'],
+  'uml use case': ['actor', 'ellipse', 'rectangle'],
+  sequence: ['participant', 'rectangle'],
+  'uml sequence': ['participant', 'rectangle'],
+  activity: ['start', 'rectangle', 'diamond', 'end'],
+  'uml activity': ['start', 'rectangle', 'diamond', 'end'],
+  deployment: ['node', 'database', 'component'],
+  'uml deployment': ['node', 'database', 'component'],
+  package: ['package', 'class', 'component'],
+  'uml package diagram': ['package', 'class', 'component'],
+  component: ['component', 'database', 'node', 'rectangle'],
+  'uml component diagram': ['component', 'database', 'node', 'rectangle'],
+  er: ['entity', 'rectangle', 'diamond'],
+  'er diagram': ['entity', 'rectangle', 'diamond'],
+  architecture: ['node', 'database', 'component', 'rectangle'],
+  'architecture diagram': ['node', 'database', 'component', 'rectangle'],
+};
 
 // ─── CASE Tool: Code Generation Modal ───────────────────────────────────────
 function CodeGenModal({ elements, connectors, onClose }) {
@@ -277,6 +307,9 @@ export default function DiagramEditor({ template, elements: initialElements, con
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const canvasRef = useRef(null);
+  const paletteKey = String(template || '').toLowerCase();
+  const paletteTypes = PALETTE_BY_TEMPLATE[paletteKey] || ['rectangle', 'circle', 'diamond', 'start', 'end', 'class'];
+  const paletteShapes = paletteTypes.map((t) => SHAPE_MAP[t]).filter(Boolean);
 
   const handleDragStartPalette = (e, shapeType) => {
     e.dataTransfer.setData('shapeType', shapeType);
@@ -288,7 +321,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
     const shapeType = e.dataTransfer.getData('shapeType');
     if (shapeType) {
       const rect = canvasRef.current.getBoundingClientRect();
-      const shapeDef = SHAPE_TYPES.find(s => s.type === shapeType) || SHAPE_TYPES[0];
+      const shapeDef = SHAPE_MAP[shapeType] || SHAPE_TYPES[0];
       const newEl = {
         id: Date.now().toString() + Math.random(),
         type: shapeType,
@@ -362,7 +395,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
         const lines = newText.split('\n');
         const maxLen = Math.max(...lines.map(l => l.length), 1);
         
-        let shapeDef = SHAPE_TYPES.find(s => s.type === el.type);
+        let shapeDef = SHAPE_MAP[el.type];
         const minW = shapeDef ? shapeDef.defaultWidth : 120;
         const minH = shapeDef ? shapeDef.defaultHeight : 60;
         
@@ -505,6 +538,37 @@ export default function DiagramEditor({ template, elements: initialElements, con
         const r = el.width / 2;
         svgStr += `<circle cx="${el.x + r}" cy="${el.y + r}" r="${r}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
         svgStr += buildTextTspan(el.text, el.x + r, el.y + r + 4, textColor, fs);
+      } else if (el.type === 'ellipse') {
+        svgStr += `<ellipse cx="${el.x + el.width / 2}" cy="${el.y + el.height / 2}" rx="${el.width / 2}" ry="${el.height / 2}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += buildTextTspan(el.text, el.x + el.width / 2, el.y + el.height / 2 + 4, textColor, fs);
+      } else if (el.type === 'actor') {
+        const cx = el.x + el.width / 2;
+        svgStr += `<circle cx="${cx}" cy="${el.y + 14}" r="10" fill="none" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += `<line x1="${cx}" y1="${el.y + 24}" x2="${cx}" y2="${el.y + 58}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += `<line x1="${cx - 16}" y1="${el.y + 36}" x2="${cx + 16}" y2="${el.y + 36}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += `<line x1="${cx}" y1="${el.y + 58}" x2="${cx - 16}" y2="${el.y + 82}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += `<line x1="${cx}" y1="${el.y + 58}" x2="${cx + 16}" y2="${el.y + 82}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += `<text x="${cx}" y="${el.y + el.height - 6}" fill="${textColor}" font-size="${Math.max(fs - 1, 10)}" font-family="monospace" text-anchor="middle">${escapeXml(el.text || '')}</text>`;
+      } else if (el.type === 'participant') {
+        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" stroke-dasharray="6 4" rx="4" />`;
+        svgStr += `<line x1="${el.x + el.width / 2}" y1="${el.y + 30}" x2="${el.x + el.width / 2}" y2="${el.y + el.height - 8}" stroke="${edgeColor}" stroke-width="1.5" stroke-dasharray="4 4" />`;
+        svgStr += `<text x="${el.x + el.width / 2}" y="${el.y + 20}" fill="${textColor}" font-size="${fs}" font-family="monospace" text-anchor="middle">${escapeXml(el.text || '')}</text>`;
+      } else if (el.type === 'database') {
+        const ry = 10;
+        svgStr += `<rect x="${el.x}" y="${el.y + ry}" width="${el.width}" height="${el.height - 2 * ry}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += `<ellipse cx="${el.x + el.width / 2}" cy="${el.y + ry}" rx="${el.width / 2}" ry="${ry}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += `<ellipse cx="${el.x + el.width / 2}" cy="${el.y + el.height - ry}" rx="${el.width / 2}" ry="${ry}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" />`;
+        svgStr += buildTextTspan(el.text, el.x + el.width / 2, el.y + el.height / 2 + 4, textColor, fs);
+      } else if (el.type === 'package') {
+        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="6" />`;
+        svgStr += `<rect x="${el.x + 10}" y="${el.y - 2}" width="${Math.min(90, el.width * 0.45)}" height="18" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="4" />`;
+        svgStr += buildTextTspan(el.text, el.x + el.width / 2, el.y + el.height / 2 + 6, textColor, fs);
+      } else if (el.type === 'component') {
+        svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="8" />`;
+        svgStr += `<rect x="${el.x + el.width - 26}" y="${el.y + 10}" width="16" height="12" fill="${fillColor}" stroke="${edgeColor}" stroke-width="${bw}" rx="1" />`;
+        svgStr += `<rect x="${el.x + el.width - 22}" y="${el.y + 13}" width="7" height="2.5" fill="${fillColor}" stroke="${edgeColor}" stroke-width="1" rx="1" />`;
+        svgStr += `<rect x="${el.x + el.width - 22}" y="${el.y + 18}" width="7" height="2.5" fill="${fillColor}" stroke="${edgeColor}" stroke-width="1" rx="1" />`;
+        svgStr += buildTextTspan(el.text, el.x + el.width / 2, el.y + el.height / 2 + 8, textColor, fs);
       } else if (el.type === 'diamond') {
         const cx = el.x + el.width / 2;
         const cy = el.y + el.height / 2;
@@ -642,7 +706,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <aside style={{ width: '250px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', zIndex: 10 }}>
           <h3 style={{ margin: 0, color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase' }}>Shapes Palette</h3>
-          {SHAPE_TYPES.map(s => (
+          {paletteShapes.map(s => (
             <div 
               key={s.type}
               draggable 
@@ -834,11 +898,39 @@ export default function DiagramEditor({ template, elements: initialElements, con
             };
 
             if (el.type === 'circle') shapeStyle.borderRadius = '50%';
+            else if (el.type === 'ellipse') shapeStyle.borderRadius = '999px / 70%';
             else if (el.type === 'diamond') shapeStyle.transform = 'rotate(45deg)';
-            else shapeStyle.borderRadius = '8px';
+            else if (el.type === 'participant') {
+              shapeStyle.borderRadius = '4px';
+              shapeStyle.borderStyle = 'dashed';
+            } else if (el.type === 'database') {
+              shapeStyle.borderRadius = '16px / 12px';
+            } else {
+              shapeStyle.borderRadius = '8px';
+            }
 
             return (
               <div key={el.id} style={shapeStyle} onPointerDown={(e) => handlePointerDownElement(e, el.id)} onClick={(e) => e.stopPropagation()}>
+                {el.type === 'package' && (
+                  <div style={{ position: 'absolute', top: '-2px', left: '12px', width: '64px', height: '18px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderBottom: 'none', borderRadius: '6px 6px 0 0', backgroundColor: style.backgroundColor }} />
+                )}
+                {el.type === 'component' && (
+                  <>
+                    <div style={{ position: 'absolute', right: '8px', top: '10px', width: '18px', height: '14px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '2px' }} />
+                    <div style={{ position: 'absolute', right: '13px', top: '13px', width: '8px', height: '3px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '1px', backgroundColor: style.backgroundColor }} />
+                    <div style={{ position: 'absolute', right: '13px', top: '20px', width: '8px', height: '3px', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`, borderRadius: '1px', backgroundColor: style.backgroundColor }} />
+                  </>
+                )}
+                {el.type === 'actor' && (
+                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                    <div style={{ position: 'absolute', top: '8px', left: 'calc(50% - 8px)', width: '16px', height: '16px', borderRadius: '50%', border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}` }} />
+                    <div style={{ position: 'absolute', top: '26px', left: 'calc(50% - 1px)', width: '2px', height: '34px', backgroundColor: isSelected ? '#ffffff' : style.borderColor }} />
+                    <div style={{ position: 'absolute', top: '34px', left: 'calc(50% - 18px)', width: '36px', height: '2px', backgroundColor: isSelected ? '#ffffff' : style.borderColor }} />
+                    <div style={{ position: 'absolute', top: '58px', left: 'calc(50% - 1px)', width: '2px', height: '28px', backgroundColor: 'transparent' }} />
+                    <div style={{ position: 'absolute', top: '62px', left: 'calc(50% - 1px)', width: '2px', height: '18px', transform: 'rotate(30deg)', transformOrigin: 'top', backgroundColor: isSelected ? '#ffffff' : style.borderColor }} />
+                    <div style={{ position: 'absolute', top: '62px', left: 'calc(50% - 1px)', width: '2px', height: '18px', transform: 'rotate(-30deg)', transformOrigin: 'top', backgroundColor: isSelected ? '#ffffff' : style.borderColor }} />
+                  </div>
+                )}
                 <div style={el.type === 'diamond' ? { transform: 'rotate(-45deg)' } : {}}>
                   <strong style={{ display: 'block', wordWrap: 'break-word', overflow: 'hidden', fontSize: `${style.fontSize}px`, whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{el.text}</strong>
                 </div>

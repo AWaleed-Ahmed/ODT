@@ -37,48 +37,151 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Seed default templates ────────────────────────────────────────────────────
+# ── Default templates + merge logic ──────────────────────────────────────────
 
-if not os.path.exists(TEMPLATES_FILE):
-    default_templates = [
-        {"id": "blank", "name": "Blank Canvas", "elements": []},
-        {
-            "id": "uml",
-            "name": "UML Class Diagram",
-            "elements": [
-                {"id": "1", "type": "class", "name": "User",  "x": 200, "y": 150},
-                {"id": "2", "type": "class", "name": "Order", "x": 500, "y": 150},
-            ],
-        },
-        {
-            "id": "flowchart",
-            "name": "Flowchart",
-            "elements": [
-                {"id": "1", "type": "start",    "label": "Start Entry",    "x": 400, "y": 100},
-                {"id": "2", "type": "decision", "label": "Process Check",  "x": 400, "y": 250},
-                {"id": "3", "type": "end",      "label": "End Pipeline",   "x": 400, "y": 400},
-            ],
-        },
-        {
-            "id": "er",
-            "name": "ER Diagram",
-            "elements": [
-                {"id": "1", "type": "entity", "name": "Customer", "x": 200, "y": 200},
-                {"id": "2", "type": "entity", "name": "Product",  "x": 500, "y": 200},
-            ],
-        },
-        {
-            "id": "architecture",
-            "name": "Architecture Diagram",
-            "elements": [
-                {"id": "1", "type": "node",     "label": "Client App",    "x": 150, "y": 200},
-                {"id": "2", "type": "node",     "label": "API Gateway",   "x": 400, "y": 200},
-                {"id": "3", "type": "database", "label": "PostgreSQL DB", "x": 650, "y": 200},
-            ],
-        },
-    ]
-    with open(TEMPLATES_FILE, 'w') as f:
-        json.dump(default_templates, f, indent=2)
+DEFAULT_TEMPLATES = [
+    {"id": "blank", "name": "Blank Canvas", "elements": [], "connectors": []},
+    {
+        "id": "uml",
+        "name": "UML Class Diagram",
+        "elements": [
+            {"id": "uc1", "type": "class", "name": "User", "x": 200, "y": 150, "width": 160, "height": 100},
+            {"id": "uc2", "type": "class", "name": "Order", "x": 500, "y": 150, "width": 160, "height": 100},
+        ],
+        "connectors": [],
+    },
+    {
+        "id": "flowchart",
+        "name": "Flowchart",
+        "elements": [
+            {"id": "fc1", "type": "start", "label": "Start", "x": 400, "y": 80, "width": 64, "height": 64},
+            {"id": "fc2", "type": "diamond", "label": "Valid?", "x": 380, "y": 200, "width": 110, "height": 110},
+            {"id": "fc3", "type": "rectangle", "label": "Process", "x": 370, "y": 380, "width": 140, "height": 56},
+            {"id": "fc4", "type": "end", "label": "End", "x": 400, "y": 500, "width": 64, "height": 64},
+        ],
+        "connectors": [],
+    },
+    {
+        "id": "er",
+        "name": "ER Diagram",
+        "elements": [
+            {"id": "er1", "type": "entity", "name": "Customer", "x": 200, "y": 200, "width": 140, "height": 72},
+            {"id": "er2", "type": "entity", "name": "Product", "x": 500, "y": 200, "width": 140, "height": 72},
+        ],
+        "connectors": [],
+    },
+    {
+        "id": "architecture",
+        "name": "Architecture Diagram",
+        "elements": [
+            {"id": "ar1", "type": "node", "label": "Client App", "x": 120, "y": 200, "width": 130, "height": 56},
+            {"id": "ar2", "type": "node", "label": "API Gateway", "x": 360, "y": 200, "width": 140, "height": 56},
+            {"id": "ar3", "type": "database", "label": "PostgreSQL DB", "x": 620, "y": 190, "width": 150, "height": 72},
+        ],
+        "connectors": [],
+    },
+    {
+        "id": "usecase",
+        "name": "UML Use Case",
+        "elements": [
+            {"id": "uc_sys", "type": "rectangle", "name": "Online Store", "x": 300, "y": 100, "width": 460, "height": 400},
+            {"id": "uc_a1", "type": "rectangle", "name": "Customer", "x": 100, "y": 240, "width": 100, "height": 48},
+            {"id": "uc_a2", "type": "rectangle", "name": "Administrator", "x": 100, "y": 330, "width": 120, "height": 48},
+            {"id": "uc_e1", "type": "circle", "name": "Browse Catalog", "x": 390, "y": 150, "width": 120, "height": 120},
+            {"id": "uc_e2", "type": "circle", "name": "Place Order", "x": 390, "y": 290, "width": 120, "height": 120},
+        ],
+        "connectors": [],
+    },
+    {
+        "id": "sequence",
+        "name": "UML Sequence",
+        "elements": [
+            {"id": "sq_u", "type": "rectangle", "name": ":User", "x": 120, "y": 90, "width": 108, "height": 380},
+            {"id": "sq_ui", "type": "rectangle", "name": ":CartUI", "x": 280, "y": 90, "width": 118, "height": 380},
+            {"id": "sq_api", "type": "rectangle", "name": ":OrderAPI", "x": 460, "y": 90, "width": 130, "height": 380},
+            {"id": "sq_db", "type": "rectangle", "name": ":Database", "x": 640, "y": 90, "width": 118, "height": 380},
+        ],
+        "connectors": [],
+    },
+    {
+        "id": "activity",
+        "name": "UML Activity",
+        "elements": [
+            {"id": "act1", "type": "start", "label": "Start", "x": 400, "y": 60, "width": 64, "height": 64},
+            {"id": "act2", "type": "rectangle", "name": "Receive Request", "x": 350, "y": 160, "width": 180, "height": 52},
+            {"id": "act3", "type": "diamond", "name": "Authorized?", "x": 375, "y": 260, "width": 130, "height": 130},
+            {"id": "act7", "type": "end", "label": "End", "x": 400, "y": 560, "width": 64, "height": 64},
+        ],
+        "connectors": [],
+    },
+    {
+        "id": "deployment",
+        "name": "UML Deployment",
+        "elements": [
+            {"id": "dp_w", "type": "node", "name": "Web Tier", "x": 200, "y": 220, "width": 160, "height": 88},
+            {"id": "dp_app", "type": "node", "name": "App Tier", "x": 400, "y": 210, "width": 170, "height": 100},
+            {"id": "dp_db", "type": "database", "name": "PostgreSQL", "x": 610, "y": 230, "width": 130, "height": 88},
+        ],
+        "connectors": [],
+    },
+    {
+        "id": "package",
+        "name": "UML Package Diagram",
+        "elements": [
+            {"id": "pkg1", "type": "package", "name": "com.myapp.orders", "x": 150, "y": 140, "width": 260, "height": 170},
+            {"id": "pkg2", "type": "package", "name": "com.myapp.shared", "x": 500, "y": 180, "width": 250, "height": 160},
+        ],
+        "connectors": [{"id": "pkgc1", "fromElement": "pkg1", "toElement": "pkg2", "type": "dependency", "text": "imports"}],
+    },
+    {
+        "id": "component",
+        "name": "UML Component Diagram",
+        "elements": [
+            {"id": "cmp1", "type": "component", "name": "Web Client", "x": 140, "y": 200, "width": 190, "height": 110},
+            {"id": "cmp2", "type": "component", "name": "API Gateway", "x": 390, "y": 200, "width": 210, "height": 110},
+            {"id": "cmp3", "type": "component", "name": "Order Service", "x": 670, "y": 200, "width": 210, "height": 110},
+        ],
+        "connectors": [
+            {"id": "cmpc1", "fromElement": "cmp1", "toElement": "cmp2", "type": "arrow", "text": "HTTPS"},
+            {"id": "cmpc2", "fromElement": "cmp2", "toElement": "cmp3", "type": "arrow", "text": "REST"},
+        ],
+    },
+]
+
+
+def merge_default_templates():
+    """Ensure templates.json contains all DEFAULT_TEMPLATES by id; keep custom ones."""
+    if not os.path.exists(TEMPLATES_FILE):
+        with open(TEMPLATES_FILE, "w") as f:
+            json.dump(DEFAULT_TEMPLATES, f, indent=2)
+        return
+
+    try:
+        with open(TEMPLATES_FILE, "r") as f:
+            existing = json.load(f)
+        if not isinstance(existing, list):
+            existing = []
+    except Exception:
+        existing = []
+
+    merged = []
+    seen = set()
+    for d in DEFAULT_TEMPLATES:
+        merged.append(dict(d))
+        seen.add(d["id"])
+
+    for t in existing:
+        tid = t.get("id")
+        if tid and tid not in seen:
+            merged.append(t)
+            seen.add(tid)
+
+    if json.dumps(merged, sort_keys=True) != json.dumps(existing, sort_keys=True):
+        with open(TEMPLATES_FILE, "w") as f:
+            json.dump(merged, f, indent=2)
+
+
+merge_default_templates()
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
@@ -147,6 +250,7 @@ def health_check():
 @app.get('/api/templates')
 def list_templates():
     try:
+        merge_default_templates()
         with open(TEMPLATES_FILE, 'r') as f:
             templates = json.load(f)
         return {'templates': templates}
