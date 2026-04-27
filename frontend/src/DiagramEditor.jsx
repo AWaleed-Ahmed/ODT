@@ -11,6 +11,19 @@ const escapeXml = (str) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+/** `input type="color"` only accepts hex; resolve `var(--token)` from the document theme. */
+function hexForColorInput(value) {
+  if (!value || typeof value !== 'string') return '#16161e';
+  const t = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(t) || /^#[0-9a-fA-F]{3}$/.test(t)) return t;
+  const m = t.match(/^var\(\s*(--[^)]+)\s*\)$/);
+  if (m && typeof document !== 'undefined') {
+    const resolved = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(resolved) || /^#[0-9a-fA-F]{3}$/.test(resolved)) return resolved;
+  }
+  return '#16161e';
+}
+
 const CONNECTOR_TYPES = [
   { value: 'arrow',       label: 'Arrow', description: 'Directed arrow (tip at target)' },
   { value: 'inheritance', label: 'Inheritance ▷', description: 'UML generalization (hollow triangle)' },
@@ -176,7 +189,12 @@ function ExportDialog({ onClose, onExport }) {
 }
 function PropertiesPanel({ element, onChange, onDelete }) {
   if (!element) return null;
-  const style = element.style || { backgroundColor: '#16161e', borderColor: '#555555', borderWidth: 2, fontSize: 14 };
+  const style = element.style || {
+    backgroundColor: 'var(--diagram-default-fill)',
+    borderColor: 'var(--border-strong)',
+    borderWidth: 2,
+    fontSize: 14,
+  };
 
   const handleChange = (field, value) => {
     if (field === 'text') {
@@ -199,55 +217,55 @@ function PropertiesPanel({ element, onChange, onDelete }) {
   };
 
   return (
-    <aside style={{ width: '280px', backgroundColor: '#111', borderLeft: '1px solid #333', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', zIndex: 10, overflowY: 'auto' }}>
-      <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem' }}>Properties</h3>
+    <aside style={{ width: '280px', backgroundColor: 'var(--bg-surface)', borderLeft: '1px solid var(--border-default)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', zIndex: 10, overflowY: 'auto' }}>
+      <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem' }}>Properties</h3>
       
       <div>
-        <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Text Label</label>
+        <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Text Label</label>
         <textarea 
           value={element.text || ''} 
           onChange={e => handleChange('text', e.target.value)}
           rows={4}
-          style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+          style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', caretColor: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
         />
       </div>
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Width</label>
+          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Width</label>
           <input 
             type="number" 
             value={element.width || 0} 
             onChange={e => handleChange('width', parseInt(e.target.value) || 0)}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }}
+            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', caretColor: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', outline: 'none' }}
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Height</label>
+          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Height</label>
           <input 
             type="number" 
             value={element.height || 0} 
             onChange={e => handleChange('height', parseInt(e.target.value) || 0)}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }}
+            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', caretColor: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', outline: 'none' }}
           />
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Background Color</label>
+          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Background Color</label>
           <input 
             type="color" 
-            value={style.backgroundColor} 
+            value={hexForColorInput(style.backgroundColor)} 
             onChange={e => handleChange('backgroundColor', e.target.value)}
             style={{ width: '100%', height: '36px', padding: '0', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Border Color</label>
+          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Border Color</label>
           <input 
             type="color" 
-            value={style.borderColor} 
+            value={hexForColorInput(style.borderColor)} 
             onChange={e => handleChange('borderColor', e.target.value)}
             style={{ width: '100%', height: '36px', padding: '0', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
           />
@@ -256,7 +274,7 @@ function PropertiesPanel({ element, onChange, onDelete }) {
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Border Width ({style.borderWidth}px)</label>
+          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Border Width ({style.borderWidth}px)</label>
           <input 
             type="range" 
             min="0" max="10" 
@@ -266,12 +284,12 @@ function PropertiesPanel({ element, onChange, onDelete }) {
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', color: '#aaa', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Font Size ({style.fontSize}px)</label>
+          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>Font Size ({style.fontSize}px)</label>
           <input 
             type="number" 
             value={style.fontSize} 
             onChange={e => handleChange('fontSize', parseInt(e.target.value) || 12)}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', outline: 'none' }}
+            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', caretColor: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', outline: 'none' }}
           />
         </div>
       </div>
@@ -658,24 +676,24 @@ export default function DiagramEditor({ template, elements: initialElements, con
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#1c1b1a' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--bg-body)' }}>
       {showExport && <ExportDialog onClose={() => setShowExport(false)} onExport={handleExport} />}
       {showCodeGen && <CodeGenModal elements={elements} connectors={connectors} onClose={() => setShowCodeGen(false)} />}
       {showValidation && <ValidationModal elements={elements} connectors={connectors} template={template} onClose={() => setShowValidation(false)} />}
       
-      <header style={{ padding: '1rem 2rem', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111' }}>
+      <header style={{ padding: '1rem 2rem', borderBottom: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={onBack} style={{ backgroundColor: 'transparent', color: '#fff', border: '1px solid #555', padding: '6px 12px' }}>
+          <button onClick={onBack} style={{ backgroundColor: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)', padding: '6px 12px' }}>
             &larr; Back
           </button>
-          <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#fff' }}>Editor - {template}</h2>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)' }}>Editor - {template}</h2>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
            <select
              value={selectedConnectorType}
              onChange={e => setSelectedConnectorType(e.target.value)}
              title="Connector type used for new connections"
-             style={{ backgroundColor: '#222', color: '#ccc', border: '1px solid #555', padding: '6px 8px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', outline: 'none' }}
+             style={{ backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', padding: '6px 8px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', outline: 'none' }}
            >
              {CONNECTOR_TYPES.map(ct => (
                <option key={ct.value} value={ct.value}>{ct.label}</option>
@@ -685,9 +703,9 @@ export default function DiagramEditor({ template, elements: initialElements, con
              onClick={() => setConnectingFrom(selectedId)} 
              disabled={!selectedId}
              style={{ 
-                 backgroundColor: connectingFrom ? '#fff' : '#333', 
-                 color: connectingFrom ? '#000' : '#fff', 
-                 border: `1px solid ${connectingFrom ? '#fff' : '#555'}`, 
+                 backgroundColor: connectingFrom ? 'var(--accent-inverse-bg)' : 'var(--bg-button)', 
+                 color: connectingFrom ? 'var(--accent-inverse-text)' : 'var(--text-primary)', 
+                 border: `1px solid ${connectingFrom ? 'var(--border-emphasis)' : 'var(--border-subtle)'}`, 
                  padding: '6px 16px',
                  borderRadius: '8px',
                  opacity: selectedId ? 1 : 0.5,
@@ -699,66 +717,66 @@ export default function DiagramEditor({ template, elements: initialElements, con
            </button>
 
            {/* CASE Tool Buttons */}
-           <div style={{ width: '1px', height: '24px', backgroundColor: '#444' }} />
+           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-default)' }} />
            <button
              onClick={() => setShowValidation(true)}
              title="Validate diagram structure and UML rules"
-             style={{ backgroundColor: '#1a2a1a', color: '#7dce82', border: '1px solid #2a5a2a', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+             style={{ backgroundColor: 'var(--success-soft-bg)', color: 'var(--success-soft-text)', border: '1px solid var(--success-text)', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
            >
              <CheckSquare size={16} /> Validate
            </button>
            <button
              onClick={() => setShowCodeGen(true)}
              title="Generate Python class code from UML Class shapes"
-             style={{ backgroundColor: '#1a1a2a', color: '#7ec8e3', border: '1px solid #2a3a5a', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+             style={{ backgroundColor: 'var(--bg-muted)', color: 'var(--code-syntax)', border: '1px solid var(--border-strong)', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
            >
              <FileCode size={16} /> Generate Code
            </button>
-           <div style={{ width: '1px', height: '24px', backgroundColor: '#444' }} />
+           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-default)' }} />
 
-           <button onClick={() => setShowExport(true)} style={{ backgroundColor: 'transparent', color: '#fff', border: '1px solid #555', padding: '6px 16px', borderRadius: '8px', cursor: 'pointer' }}>Export</button>
-           <button onClick={() => onSave(diagramId, elements, connectors)} style={{ backgroundColor: '#fff', color: '#000', border: 'none', padding: '6px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Save</button>
+           <button onClick={() => setShowExport(true)} style={{ backgroundColor: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)', padding: '6px 16px', borderRadius: '8px', cursor: 'pointer' }}>Export</button>
+           <button onClick={() => onSave(diagramId, elements, connectors)} style={{ backgroundColor: 'var(--accent-inverse-bg)', color: 'var(--accent-inverse-text)', border: '1px solid var(--accent-inverse-bg)', padding: '6px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Save</button>
         </div>
       </header>
       
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <aside style={{ width: '250px', backgroundColor: '#111', borderRight: '1px solid #333', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', zIndex: 10 }}>
-          <h3 style={{ margin: 0, color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase' }}>Shapes Palette</h3>
+        <aside style={{ width: '250px', backgroundColor: 'var(--bg-surface)', borderRight: '1px solid var(--border-default)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', zIndex: 10 }}>
+          <h3 style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Shapes Palette</h3>
           {paletteShapes.map(s => (
             <div 
               key={s.type}
               draggable 
               onDragStart={(e) => handleDragStartPalette(e, s.type)}
-              style={{ padding: '1rem', backgroundColor: '#222', border: '1px solid #444', borderRadius: s.type === 'circle' ? '40px' : '8px', cursor: 'grab', textAlign: 'center', color: '#ccc', userSelect: 'none' }}
+              style={{ padding: '1rem', backgroundColor: 'var(--bg-muted)', border: '1px solid var(--border-default)', borderRadius: s.type === 'circle' ? '40px' : '8px', cursor: 'grab', textAlign: 'center', color: 'var(--text-secondary)', userSelect: 'none' }}
             >
               {s.label}
             </div>
           ))}
           
           {selectedId && (
-            <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
-                <h3 style={{ margin: '0 0 1rem 0', color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase' }}>Edit Element</h3>
+            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-default)', paddingTop: '1.5rem' }}>
+                <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Edit Element</h3>
                 <textarea 
                   value={elements.find(e => e.id === selectedId)?.text || ''} 
                   onChange={(e) => handleEditText(selectedId, e.target.value)}
                   rows={4}
-                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '8px', resize: 'vertical' }}
+                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', caretColor: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', padding: '8px', resize: 'vertical' }}
                 />
-                <p style={{ color: '#888', fontSize: '0.8rem', marginTop: '0.8rem' }}>Press Backspace/Delete key to remove.</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.8rem' }}>Press Backspace/Delete key to remove.</p>
             </div>
           )}
 
           {selectedConnectorId && !selectedId && (() => {
             const selConn = connectors.find(c => c.id === selectedConnectorId);
             return selConn ? (
-              <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                <h3 style={{ margin: 0, color: '#aaa', fontSize: '0.9rem', textTransform: 'uppercase' }}>Edit Connector</h3>
+              <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-default)', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <h3 style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Edit Connector</h3>
                 <div>
-                  <label style={{ display: 'block', color: '#888', fontSize: '0.8rem', marginBottom: '0.3rem' }}>Type</label>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.3rem' }}>Type</label>
                   <select
                     value={selConn.type || 'arrow'}
                     onChange={e => handleUpdateConnector(selectedConnectorId, { type: e.target.value })}
-                    style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '8px', outline: 'none' }}
+                    style={{ width: '100%', boxSizing: 'border-box', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', padding: '8px', outline: 'none' }}
                   >
                     {CONNECTOR_TYPES.map(ct => (
                       <option key={ct.value} value={ct.value}>{ct.label}</option>
@@ -766,23 +784,23 @@ export default function DiagramEditor({ template, elements: initialElements, con
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', color: '#888', fontSize: '0.8rem', marginBottom: '0.3rem' }}>Label</label>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.3rem' }}>Label</label>
                   <input 
                     type="text" 
                     value={selConn.text || ''} 
                     onChange={e => handleEditConnectorText(selectedConnectorId, e.target.value)}
                     placeholder="e.g. extends, uses, 1..*"
-                    style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '8px', outline: 'none' }}
+                    style={{ width: '100%', boxSizing: 'border-box', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', caretColor: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: '4px', padding: '8px', outline: 'none' }}
                   />
                 </div>
-                <p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>Press Backspace/Delete key to remove.</p>
+                <p style={{ color: 'var(--text-faint)', fontSize: '0.8rem', margin: 0 }}>Press Backspace/Delete key to remove.</p>
               </div>
             ) : null;
           })()}
           
           {!selectedId && !selectedConnectorId && (
-            <div style={{ marginTop: 'auto', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
-              <p style={{ color: '#666', fontSize: '0.9rem', margin: 0 }}>Select an element or connector to edit.</p>
+            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-default)', paddingTop: '1.5rem' }}>
+              <p style={{ color: 'var(--text-faint)', fontSize: '0.9rem', margin: 0 }}>Select an element or connector to edit.</p>
             </div>
           )}
         </aside>
@@ -795,14 +813,19 @@ export default function DiagramEditor({ template, elements: initialElements, con
           onPointerUp={handlePointerUpCanvas}
           onPointerLeave={handlePointerUpCanvas}
           onClick={() => { setSelectedId(null); setSelectedConnectorId(null); setConnectingFrom(null); }}
-          style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: connectingFrom ? 'crosshair' : (draggingId ? 'grabbing' : 'auto') }}
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)', cursor: connectingFrom ? 'crosshair' : (draggingId ? 'grabbing' : 'auto') }}
         >
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'radial-gradient(#444 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.5, pointerEvents: 'none' }}></div>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'radial-gradient(var(--canvas-grid) 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.55, pointerEvents: 'none' }}></div>
 
           {elements.map((el) => {
             const isSelected = el.id === selectedId;
             const isClassShape = el.type === 'class' || el.type === 'entity';
-            const style = el.style || { backgroundColor: isClassShape ? '#0d1a2a' : '#16161e', borderColor: isClassShape ? '#3a6ea8' : '#555555', borderWidth: 2, fontSize: 14 };
+            const style = el.style || {
+              backgroundColor: isClassShape ? 'var(--diagram-class-fill)' : 'var(--diagram-default-fill)',
+              borderColor: isClassShape ? 'var(--diagram-class-border)' : 'var(--border-strong)',
+              borderWidth: 2,
+              fontSize: 14,
+            };
 
             let shapeStyle = {
               position: 'absolute',
@@ -812,7 +835,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
               height: `${el.height}px`,
               backgroundColor: style.backgroundColor,
               border: `${style.borderWidth}px solid ${isSelected ? '#ffffff' : style.borderColor}`,
-              color: '#fff',
+              color: 'var(--diagram-shape-text)',
               boxShadow: isSelected ? '0 0 0 2px rgba(255,255,255,0.2)' : '0 4px 12px rgba(0,0,0,0.5)',
               display: 'flex',
               alignItems: 'center',
@@ -1003,34 +1026,34 @@ export default function DiagramEditor({ template, elements: initialElements, con
           <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }}>
             <defs>
               <marker id="arrow-filled-normal" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#aaa" />
+                <polygon points="0 0, 10 3.5, 0 7" fill="var(--connector-normal)" />
               </marker>
               <marker id="arrow-filled-selected" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#fff" />
+                <polygon points="0 0, 10 3.5, 0 7" fill="var(--connector-selected)" />
               </marker>
               <marker id="arrow-inherit-normal" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
-                <polygon points="0 0, 12 4.5, 0 9" fill="#1c1b1a" stroke="#aaa" strokeWidth="1.5" />
+                <polygon points="0 0, 12 4.5, 0 9" fill="var(--diagram-marker-fill-open)" stroke="var(--connector-normal)" strokeWidth="1.5" />
               </marker>
               <marker id="arrow-inherit-selected" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
-                <polygon points="0 0, 12 4.5, 0 9" fill="#1c1b1a" stroke="#fff" strokeWidth="1.5" />
+                <polygon points="0 0, 12 4.5, 0 9" fill="var(--diagram-marker-fill-open)" stroke="var(--connector-selected)" strokeWidth="1.5" />
               </marker>
               <marker id="arrow-assoc-normal" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-                <polygon points="0 0, 8 3.5, 0 7" fill="#1c1b1a" stroke="#aaa" strokeWidth="1.2" />
+                <polygon points="0 0, 8 3.5, 0 7" fill="var(--diagram-marker-fill-open)" stroke="var(--connector-normal)" strokeWidth="1.2" />
               </marker>
               <marker id="arrow-assoc-selected" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-                <polygon points="0 0, 8 3.5, 0 7" fill="#1c1b1a" stroke="#fff" strokeWidth="1.2" />
+                <polygon points="0 0, 8 3.5, 0 7" fill="var(--diagram-marker-fill-open)" stroke="var(--connector-selected)" strokeWidth="1.2" />
               </marker>
               <marker id="crow-normal" markerWidth="18" markerHeight="14" refX="16" refY="7" orient="auto" markerUnits="userSpaceOnUse">
-                <path d="M 0 0 L 6 7 L 0 14 M 6 7 L 16 7" fill="none" stroke="#aaa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter" />
+                <path d="M 0 0 L 6 7 L 0 14 M 6 7 L 16 7" fill="none" stroke="var(--connector-normal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter" />
               </marker>
               <marker id="crow-selected" markerWidth="18" markerHeight="14" refX="16" refY="7" orient="auto" markerUnits="userSpaceOnUse">
-                <path d="M 0 0 L 6 7 L 0 14 M 6 7 L 16 7" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter" />
+                <path d="M 0 0 L 6 7 L 0 14 M 6 7 L 16 7" fill="none" stroke="var(--connector-selected)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="miter" />
               </marker>
               <marker id="er-one-bar-normal" markerWidth="8" markerHeight="16" refX="5" refY="8" orient="auto" markerUnits="userSpaceOnUse">
-                <line x1="4" y1="1" x2="4" y2="15" stroke="#aaa" strokeWidth="2.5" strokeLinecap="square" />
+                <line x1="4" y1="1" x2="4" y2="15" stroke="var(--connector-normal)" strokeWidth="2.5" strokeLinecap="square" />
               </marker>
               <marker id="er-one-bar-selected" markerWidth="8" markerHeight="16" refX="5" refY="8" orient="auto" markerUnits="userSpaceOnUse">
-                <line x1="4" y1="1" x2="4" y2="15" stroke="#fff" strokeWidth="2.5" strokeLinecap="square" />
+                <line x1="4" y1="1" x2="4" y2="15" stroke="var(--connector-selected)" strokeWidth="2.5" strokeLinecap="square" />
               </marker>
             </defs>
             {connectors.map(c => {
@@ -1039,7 +1062,7 @@ export default function DiagramEditor({ template, elements: initialElements, con
                if (!fromEl || !toEl) return null;
 
                const isSelected = c.id === selectedConnectorId;
-               const strokeColor = isSelected ? '#fff' : '#aaa';
+               const strokeColor = isSelected ? 'var(--connector-selected)' : 'var(--connector-normal)';
                const t = c.type || 'arrow';
                const isDependency = t === 'dependency';
                const isInheritance = t === 'inheritance';
@@ -1060,8 +1083,8 @@ export default function DiagramEditor({ template, elements: initialElements, con
                         <path d={path} fill="none" stroke="transparent" strokeWidth="15" pointerEvents="stroke" onClick={(e) => handlePointerDownConnector(e, c.id)} cursor="pointer" />
                         {c.text && (
                            <g pointerEvents="none">
-                             <rect x={labelX - Math.max(c.text.length * 4, 10)} y={labelY - 10} width={Math.max(c.text.length * 8, 20)} height="18" fill="#111" rx="4" />
-                             <text x={labelX} y={labelY + 4} fill="#ccc" fontSize="11" textAnchor="middle" fontFamily="monospace">{c.text}</text>
+                             <rect x={labelX - Math.max(c.text.length * 4, 10)} y={labelY - 10} width={Math.max(c.text.length * 8, 20)} height="18" fill="var(--connector-label-bg)" rx="4" />
+                             <text x={labelX} y={labelY + 4} fill="var(--text-secondary)" fontSize="11" textAnchor="middle" fontFamily="monospace">{c.text}</text>
                            </g>
                         )}
                     </g>
@@ -1078,8 +1101,8 @@ export default function DiagramEditor({ template, elements: initialElements, con
                    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth="20" pointerEvents="stroke" onClick={(e) => handlePointerDownConnector(e, c.id)} cursor="pointer" />
                    {c.text && (
                      <g pointerEvents="none">
-                       <rect x={midX - Math.max(c.text.length * 4, 10)} y={midY - 10} width={Math.max(c.text.length * 8, 20)} height="20" fill="#111" rx="4" />
-                       <text x={midX} y={midY + 4} fill="#ccc" fontSize="11" textAnchor="middle" fontFamily="monospace">{c.text}</text>
+                       <rect x={midX - Math.max(c.text.length * 4, 10)} y={midY - 10} width={Math.max(c.text.length * 8, 20)} height="20" fill="var(--connector-label-bg)" rx="4" />
+                       <text x={midX} y={midY + 4} fill="var(--text-secondary)" fontSize="11" textAnchor="middle" fontFamily="monospace">{c.text}</text>
                      </g>
                    )}
                    {isInheritance && (

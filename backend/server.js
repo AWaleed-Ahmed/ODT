@@ -158,6 +158,116 @@ app.delete('/api/diagrams/:diagram_id', async (req, res) => {
   }
 });
 
+app.get('/api/workspace', async (req, res) => {
+  try {
+    const user_id = req.query.user_id || '';
+    const response = await fetch(
+      `${MODEL_API}/api/workspace?user_id=${encodeURIComponent(user_id)}`
+    );
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error bridging workspace GET' });
+  }
+});
+
+app.post('/api/workspace/requirements', async (req, res) => {
+  try {
+    const response = await fetch(`${MODEL_API}/api/workspace/requirements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error bridging requirement create' });
+  }
+});
+
+app.delete('/api/workspace/requirements/:req_id', async (req, res) => {
+  try {
+    const user_id = req.query.user_id || '';
+    const response = await fetch(
+      `${MODEL_API}/api/workspace/requirements/${req.params.req_id}?user_id=${encodeURIComponent(user_id)}`,
+      { method: 'DELETE' }
+    );
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error bridging requirement delete' });
+  }
+});
+
+app.post('/api/workspace/requirements/:req_id/promote', async (req, res) => {
+  try {
+    const response = await fetch(
+      `${MODEL_API}/api/workspace/requirements/${req.params.req_id}/promote`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error bridging promote' });
+  }
+});
+
+app.post('/api/workspace/tickets', async (req, res) => {
+  try {
+    const response = await fetch(`${MODEL_API}/api/workspace/tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error bridging ticket create' });
+  }
+});
+
+app.patch('/api/workspace/tickets/:ticket_id', async (req, res) => {
+  try {
+    const response = await fetch(
+      `${MODEL_API}/api/workspace/tickets/${req.params.ticket_id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error bridging ticket patch' });
+  }
+});
+
+app.delete('/api/workspace/tickets/:ticket_id', async (req, res) => {
+  try {
+    const user_id = req.query.user_id || '';
+    const response = await fetch(
+      `${MODEL_API}/api/workspace/tickets/${req.params.ticket_id}?user_id=${encodeURIComponent(user_id)}`,
+      { method: 'DELETE' }
+    );
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error bridging ticket delete' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Backend server listening on port ${PORT}`);
 });

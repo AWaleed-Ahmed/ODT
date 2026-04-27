@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime, timezone
 import os
 import uuid
 import bcrypt
@@ -37,8 +39,37 @@ class DiagramCreate(BaseModel):
     user_id: str
     template: str
 
+
+class RequirementCreate(BaseModel):
+    user_id: str
+    title: str
+    description: Optional[str] = ""
+    priority: Optional[str] = "medium"
+
+
+class UserIdOnly(BaseModel):
+    user_id: str
+
+
+class TicketCreate(BaseModel):
+    user_id: str
+    title: str
+    description: Optional[str] = ""
+    priority: Optional[str] = "medium"
+
+
+class TicketPatch(BaseModel):
+    user_id: str
+    status: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[str] = None
+
+
 DIAGRAMS_DIR = os.path.join(STORAGE_DIR, "diagrams")
+WORKSPACE_DIR = os.path.join(STORAGE_DIR, "workspace")
 os.makedirs(os.path.abspath(DIAGRAMS_DIR), exist_ok=True)
+os.makedirs(os.path.abspath(WORKSPACE_DIR), exist_ok=True)
 
 import json
 
@@ -375,3 +406,165 @@ def delete_diagram(diagram_id: str):
             pass
         return {"message": "Diagram deleted successfully"}
     raise HTTPException(status_code=404, detail="Diagram not found")
+
+
+def _workspace_file(user_id: str) -> str:
+    safe = "".join(c for c in (user_id or "") if c.isalnum() or c in "-_")
+    if not safe:
+        safe = "unknown"
+    return os.path.join(WORKSPACE_DIR, f"user_{safe}.json")
+
+
+def _load_workspace(user_id: str) -> dict:
+    path = _workspace_file(user_id)
+    if not os.path.exists(path):
+        return {"requirements": [], "tickets": []}
+    with open(path, "r", encoding="utf-8") as f:
+        raw = f.read().strip()
+    if not raw:
+        return {"requirements": [], "tickets": []}
+    data = json.loads(raw)
+    return {
+        "requirements": data.get("requirements") or [],
+        "tickets": data.get("tickets") or [],
+    }
+
+
+def _save_workspace(user_id: str, data: dict):
+    path = _workspace_file(user_id)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+@app.get("/api/workspace")
+def get_workspace(user_id: str):
+    return _load_workspace(user_id)
+
+
+@app.post("/api/workspace/requirements")
+def create_requirement(data: RequirementCreate):
+    title = (data.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
+    pr = (data.priority or "medium").lower()
+    if pr not in ("low", "medium", "high"):
+        pr = "medium"
+    ws = _load_workspace(data.user_id)
+    rid = str(uuid.uuid4())
+    ws["requirements"].append(
+        {
+            "id": rid,
+            "title": title,
+            "description": (data.description or "").strip(),
+            "priority": pr,
+            "status": "draft",
+            "created_at": _now_iso(),
+        }
+    )
+    _save_workspace(data.user_id, ws)
+    return {"requirement": ws["requirements"][-1]}
+
+
+@app.delete("/api/workspace/requirements/{req_id}")
+def delete_requirement(req_id: str, user_id: str):
+    ws = _load_workspace(user_id)
+    n = len(ws["requirements"])
+    ws["requirements"] = [r for r in ws["requirements"] if r.get("id") != req_id]
+    if len(ws["requirements"]) == n:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    _save_workspace(user_id, ws)
+    return {"ok": True}
+
+
+@app.post("/api/workspace/requirements/{req_id}/promote")
+def promote_requirement_to_ticket(req_id: str, data: UserIdOnly):
+    ws = _load_workspace(data.user_id)
+    req = next((r for r in ws["requirements"] if r.get("id") == req_id), None)
+    if not req:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    tid = str(uuid.uuid4())
+    now = _now_iso()
+    ticket = {
+        "id": tid,
+        "title": req.get("title", "Untitled"),
+        "description": req.get("description", ""),
+        "status": "open",
+        "priority": req.get("priority", "medium"),
+        "source_requirement_id": req_id,
+        "created_at": now,
+        "updated_at": now,
+    }
+    ws["tickets"].append(ticket)
+    req["status"] = "accepted"
+    _save_workspace(data.user_id, ws)
+    return {"ticket": ticket}
+
+
+@app.post("/api/workspace/tickets")
+def create_ticket(data: TicketCreate):
+    title = (data.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
+    pr = (data.priority or "medium").lower()
+    if pr not in ("low", "medium", "high"):
+        pr = "medium"
+    ws = _load_workspace(data.user_id)
+    now = _now_iso()
+    tid = str(uuid.uuid4())
+    ticket = {
+        "id": tid,
+        "title": title,
+        "description": (data.description or "").strip(),
+        "status": "open",
+        "priority": pr,
+        "source_requirement_id": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+    ws["tickets"].append(ticket)
+    _save_workspace(data.user_id, ws)
+    return {"ticket": ticket}
+
+
+@app.patch("/api/workspace/tickets/{ticket_id}")
+def patch_ticket(ticket_id: str, data: TicketPatch):
+    ws = _load_workspace(data.user_id)
+    for t in ws["tickets"]:
+        if t.get("id") != ticket_id:
+            continue
+        if data.status is not None:
+            st = data.status.lower().replace(" ", "_")
+            allowed = ("open", "in_progress", "done", "blocked")
+            if st not in allowed:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Status must be one of: {', '.join(allowed)}",
+                )
+            t["status"] = st
+        if data.title is not None:
+            t["title"] = data.title.strip() or t.get("title", "")
+        if data.description is not None:
+            t["description"] = data.description.strip()
+        if data.priority is not None:
+            pr = data.priority.lower()
+            if pr in ("low", "medium", "high"):
+                t["priority"] = pr
+        t["updated_at"] = _now_iso()
+        _save_workspace(data.user_id, ws)
+        return {"ticket": t}
+    raise HTTPException(status_code=404, detail="Ticket not found")
+
+
+@app.delete("/api/workspace/tickets/{ticket_id}")
+def delete_ticket(ticket_id: str, user_id: str):
+    ws = _load_workspace(user_id)
+    n = len(ws["tickets"])
+    ws["tickets"] = [x for x in ws["tickets"] if x.get("id") != ticket_id]
+    if len(ws["tickets"]) == n:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    _save_workspace(user_id, ws)
+    return {"ok": True}

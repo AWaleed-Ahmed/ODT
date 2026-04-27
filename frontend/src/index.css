@@ -41,6 +41,7 @@
   --diagram-default-fill: #16161e;
   --diagram-class-fill: #0d1a2a;
   --diagram-class-border: #3a6ea8;
+  --diagram-marker-fill-open: #1c1b1a;
   --cursor-dot: #ffffff;
   --cursor-ring: #ffffff;
   --cursor-hover-accent: #818cf8;
@@ -92,8 +93,10 @@
   --diagram-default-fill: #f4f4f5;
   --diagram-class-fill: #e0f2fe;
   --diagram-class-border: #0284c7;
+  --diagram-marker-fill-open: #fafafa;
+  /* Dot is dark for light UI; halo keeps it visible on dark diagram surfaces */
   --cursor-dot: #18181b;
-  --cursor-ring: #18181b;
+  --cursor-ring: #e4e4e7;
   --cursor-hover-accent: #6366f1;
   --divider: #e4e4e7;
   --code-syntax: #0369a1;
@@ -101,6 +104,17 @@
   --warn-banner-border: #fde68a;
   --warn-banner-text: #b45309;
   --focus-ring: rgba(24, 24, 27, 0.12);
+}
+
+/* CustomCursor: light theme needs contrast on dark canvases (diagram editor) */
+[data-theme="light"] #cursor {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 8px rgba(15, 23, 42, 0.35);
+}
+[data-theme="light"] #cursor-border {
+  border-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.22);
 }
 
 body {
