@@ -207,12 +207,17 @@ def _startup_templates():
 
 @app.get("/api/templates")
 def list_templates():
+    """Ensure defaults on every request — Vercel uses many cold instances; /tmp is not shared and
+    startup hooks may run after the first request on a given instance."""
     try:
+        merge_default_templates()
         with open(TEMPLATES_FILE, "r") as f:
             templates = json.load(f)
+        if not isinstance(templates, list):
+            return {"templates": list(DEFAULT_TEMPLATES)}
         return {"templates": templates}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"templates": list(DEFAULT_TEMPLATES)}
 
 @app.get("/api/diagrams/{diagram_id}")
 def get_diagram(diagram_id: str):

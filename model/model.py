@@ -208,11 +208,14 @@ def _startup_templates():
 @app.get("/api/templates")
 def list_templates():
     try:
+        merge_default_templates()
         with open(TEMPLATES_FILE, "r") as f:
             templates = json.load(f)
+        if not isinstance(templates, list):
+            return {"templates": list(DEFAULT_TEMPLATES)}
         return {"templates": templates}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"templates": list(DEFAULT_TEMPLATES)}
 
 @app.get("/api/diagrams/{diagram_id}")
 def get_diagram(diagram_id: str):
