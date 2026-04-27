@@ -1,0 +1,23 @@
+# Virtual environment
+venv/
+env/
+.env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Vercel
+.vercel/
+
+# Logs
+*.log
+
+# ODT Storage (if local testing)
+ODT_STORAGE/
+
+# Node modules
+node_modules/
+dist/
+build/
+.vercel
