@@ -13,8 +13,9 @@ __pycache__/
 # Logs
 *.log
 
-# ODT Storage (if local testing)
-ODT_STORAGE/
+# ODT Storage: ignore local user/diagram data; keep merged default templates in repo
+ODT_STORAGE/*
+!ODT_STORAGE/templates.json
 
 # Node modules
 node_modules/
