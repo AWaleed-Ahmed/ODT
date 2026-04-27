@@ -1,3 +1,4 @@
-flask
-Werkzeug
-requests
+# Vercel Python install; keep aligned with api/requirements.txt
+fastapi
+pydantic
+bcrypt
